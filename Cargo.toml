@@ -14,3 +14,5 @@ esp-backtrace = { version = "0.7.0", features = [
     "print-uart",
 ] }
 esp-println = { version = "0.5.0", features = ["esp32"] }
+ssd1306 = "0.7.1"
+embedded-graphics = "0.7.1"
