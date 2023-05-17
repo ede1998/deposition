@@ -10,3 +10,7 @@ target/
 *.pdb
 
 .vscode
+
+
+*.FCStd1
+*.stl
