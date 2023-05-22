@@ -18,9 +18,65 @@ use hal::{
 };
 use static_cell::StaticCell;
 
-struct Centimeters(u16);
+async fn poll<T, E>(mut f: impl FnMut() -> nb::Result<T, E>) -> Result<T, E> {
+    loop {
+        match f() {
+            Ok(ok) => break Ok(ok),
+            Err(nb::Error::Other(err)) => break Err(err),
+            Err(nb::Error::WouldBlock) => embassy_futures::yield_now().await,
+        }
+    }
+}
 
-static HEIGHT: Signal<CriticalSectionRawMutex, Centimeters> = Signal::new();
+const FIX_POINTS: [(u16, Millimeters); 5] = [
+    (952, Millimeters(86)),
+    (1432, Millimeters(172)),
+    (1893, Millimeters(258)),
+    (2204, Millimeters(316)),
+    (2572, Millimeters(386)),
+];
+
+#[derive(Debug, Clone, Copy, Ord, PartialEq, PartialOrd, Eq)]
+struct Millimeters(u16);
+
+impl Millimeters {
+    pub fn from_adc_reading(reading: u16) -> Self {
+        match FIX_POINTS.binary_search_by_key(&reading, |x| x.0) {
+            Ok(i) => FIX_POINTS[i].1,
+            Err(i) => {
+                let neighbors = if i == 0 {
+                    (None, FIX_POINTS.get(0))
+                } else if i == FIX_POINTS.len() {
+                    (FIX_POINTS.get(i), None)
+                } else {
+                    (FIX_POINTS.get(i), FIX_POINTS.get(i + 1))
+                };
+
+                let scale = |left, right| {
+                    let &(left_adc, Millimeters(left_mm)) = left;
+                    let &(right_adc, Millimeters(right_mm)) = right;
+                    let slope = (right_mm - left_mm) / (right_adc - left_adc);
+                    left_mm + slope * reading
+                };
+
+                match neighbors {
+                    (Some(left), Some(right)) => Millimeters(scale(left, right)),
+                    (Some(left), None) => {
+                        let predecessor_left = &FIX_POINTS[i - 1];
+                        Millimeters(scale(predecessor_left, left))
+                    }
+                    (None, Some(right)) => {
+                        let successor_right = &FIX_POINTS[1];
+                        Millimeters(scale(right, successor_right))
+                    }
+                    (None, None) => panic!("Missing FIX POINTS!"),
+                }
+            }
+        }
+    }
+}
+
+static HEIGHT: Signal<CriticalSectionRawMutex, Millimeters> = Signal::new();
 
 #[embassy_executor::task]
 async fn measure(io: IO, analog: AvailableAnalog) {
@@ -30,9 +86,10 @@ async fn measure(io: IO, analog: AvailableAnalog) {
     let mut adc2 = ADC::<ADC2>::adc(analog.adc2, adc2_config).unwrap();
 
     loop {
-        let pin25_value: u16 = nb::block!(adc2.read(&mut pin25)).unwrap();
-        println!("PIN25 ADC reading = {}", pin25_value);
-        HEIGHT.signal(Centimeters(pin25_value));
+        let pin25_value: u16 = poll(|| adc2.read(&mut pin25)).await.unwrap();
+        let value = Millimeters::from_adc_reading(pin25_value);
+        HEIGHT.signal(value);
+        println!("{value:?} = PIN25 ADC reading = {pin25_value}");
         Timer::after(Duration::from_millis(100)).await;
     }
 }
@@ -155,4 +212,14 @@ fn main() -> ! {
     executor.run(|spawner| {
         spawner.spawn(measure(io, analog)).ok();
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_adc_conversion() {
+        
+    }
 }
