@@ -28,7 +28,8 @@ async fn poll<T, E>(mut f: impl FnMut() -> nb::Result<T, E>) -> Result<T, E> {
     }
 }
 
-const FIX_POINTS: [(u16, Millimeters); 5] = [
+type Mapping = (u16, Millimeters);
+const FIX_POINTS: [Mapping; 5] = [
     (952, Millimeters(86)),
     (1432, Millimeters(172)),
     (1893, Millimeters(258)),
@@ -40,37 +41,42 @@ const FIX_POINTS: [(u16, Millimeters); 5] = [
 struct Millimeters(u16);
 
 impl Millimeters {
+    pub fn from_adc_reading_simple(reading: u16) -> Self {
+        const FACTOR: u64 = 256;
+        const SLOPE: u64 = (0.185185185185185 * FACTOR as f64) as _;
+        const OFFSET: u64 = (90.2962962962963 * FACTOR as f64) as _;
+        let reading: u64 = reading.into();
+        let length = (SLOPE * reading - OFFSET) / FACTOR;
+        Self(length.try_into().unwrap_or(u16::MAX))
+    }
+
     pub fn from_adc_reading(reading: u16) -> Self {
         match FIX_POINTS.binary_search_by_key(&reading, |x| x.0) {
             Ok(i) => FIX_POINTS[i].1,
             Err(i) => {
-                let neighbors = if i == 0 {
-                    (None, FIX_POINTS.get(0))
+                let section = if i == 0 {
+                    (FIX_POINTS.first(), FIX_POINTS.get(1))
                 } else if i == FIX_POINTS.len() {
-                    (FIX_POINTS.get(i), None)
+                    (FIX_POINTS.get(FIX_POINTS.len() - 2), FIX_POINTS.last())
                 } else {
-                    (FIX_POINTS.get(i), FIX_POINTS.get(i + 1))
+                    (FIX_POINTS.get(i - 1), FIX_POINTS.get(i))
                 };
 
-                let scale = |left, right| {
-                    let &(left_adc, Millimeters(left_mm)) = left;
-                    let &(right_adc, Millimeters(right_mm)) = right;
-                    let slope = (right_mm - left_mm) / (right_adc - left_adc);
-                    left_mm + slope * reading
+                let &(left_adc, Millimeters(left_mm)) = section.0.unwrap();
+                let &(right_adc, Millimeters(right_mm)) = section.1.unwrap();
+                let section_height = f64::from(right_mm.abs_diff(left_mm));
+                let section_length = f64::from(right_adc.abs_diff(left_adc));
+                let slope = section_height / section_length;
+                let distance_reading_to_left = f64::from(reading.abs_diff(left_adc));
+                let mm_from_left = slope * distance_reading_to_left;
+                let mm_from_left = mm_from_left as u16;
+                let abs_mm = if reading < left_adc {
+                    left_mm - mm_from_left
+                } else {
+                    left_mm + mm_from_left
                 };
 
-                match neighbors {
-                    (Some(left), Some(right)) => Millimeters(scale(left, right)),
-                    (Some(left), None) => {
-                        let predecessor_left = &FIX_POINTS[i - 1];
-                        Millimeters(scale(predecessor_left, left))
-                    }
-                    (None, Some(right)) => {
-                        let successor_right = &FIX_POINTS[1];
-                        Millimeters(scale(right, successor_right))
-                    }
-                    (None, None) => panic!("Missing FIX POINTS!"),
-                }
+                Millimeters(abs_mm)
             }
         }
     }
@@ -220,6 +226,10 @@ mod tests {
 
     #[test]
     fn test_adc_conversion() {
-        
+        //(952, Millimeters(86)),
+        //(1432, Millimeters(172)),
+        //(1893, Millimeters(258)),
+        //(2204, Millimeters(316)),
+        //(2572, Millimeters(386)),
     }
 }
