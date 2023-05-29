@@ -16,9 +16,10 @@ use embedded_graphics::text::{Alignment, Text};
 use esp_backtrace as _;
 use esp_println::println;
 use hal::{
-    adc::{AdcConfig, Attenuation, ADC, ADC2},
+    adc::{AdcConfig, AdcPin, Attenuation, ADC, ADC2},
     analog::AvailableAnalog,
     clock::ClockControl,
+    gpio::{Analog, Gpio25, Unknown},
     i2c::I2C,
     peripherals::Peripherals,
     prelude::*,
@@ -27,6 +28,25 @@ use hal::{
 };
 use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
 use static_cell::StaticCell;
+
+fn format<const N: usize>(args: core::fmt::Arguments) -> heapless::String<N> {
+    fn format_inner<const N: usize>(args: core::fmt::Arguments) -> heapless::String<N> {
+        let mut output = heapless::String::new();
+        output
+            .write_fmt(args)
+            .expect("a formatting trait implementation returned an error");
+        output
+    }
+
+    args.as_str()
+        .map_or_else(|| format_inner(args), heapless::String::from)
+}
+macro_rules! format {
+    ($max:literal, $($arg:tt)*) => {{
+        let res = format::<$max>(core::format_args!($($arg)*));
+        res
+    }}
+}
 
 async fn poll<T, E>(mut f: impl FnMut() -> nb::Result<T, E>) -> Result<T, E> {
     loop {
@@ -170,30 +190,39 @@ fn lin_reg<const N: usize>(history: &History<u16, N>) -> (f32, f32) {
     (slope, intercept)
 }
 
+fn compute_median(samples: &mut [u16]) -> u16 {
+    samples.sort_unstable();
+    let len = samples.len();
+    if len % 2 == 0 {
+        let right_mid = samples[len / 2];
+        let left_mid = samples[(len / 2) - 1];
+        (right_mid + left_mid) / 2
+    } else {
+        samples[len / 2]
+    }
+}
+
 static HEIGHT: Signal<CriticalSectionRawMutex, (Millimeters, Direction)> = Signal::new();
 
 const SAMPLE_COUNT: usize = if cfg!(debug_assertions) { 32 } else { 64 };
 const HISTORY_COUNT: usize = 32;
 
 #[embassy_executor::task]
-async fn measure(gpio25: hal::gpio::Gpio25<hal::gpio::Unknown>, analog: AvailableAnalog) {
+async fn measure_task(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) {
+    measure(gpio25, analog).await.expect("measure task failed");
+}
+
+async fn measure(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) -> Result<(), &'static str> {
     let mut adc2_config = AdcConfig::new();
     let mut pin25 = adc2_config.enable_pin(gpio25.into_analog(), Attenuation::Attenuation11dB);
-    let mut adc2 = ADC::<ADC2>::adc(analog.adc2, adc2_config).unwrap();
+    let mut adc2 =
+        ADC::<ADC2>::adc(analog.adc2, adc2_config).map_err(|_| "ADC initialization failed")?;
 
     let mut history = History::<_, HISTORY_COUNT>::new();
 
     loop {
         let start = Instant::now();
-        let mut samples = heapless::Vec::<_, SAMPLE_COUNT>::new();
-        for _ in 0..samples.capacity() {
-            samples
-                .push(poll(|| adc2.read(&mut pin25)).await.unwrap())
-                .unwrap();
-        }
-
-        samples.sort_unstable();
-        let pin25_value = samples[samples.len() / 2];
+        let pin25_value = read_sample(&mut adc2, &mut pin25).await?;
         let duration = start.elapsed();
 
         let value = Millimeters::from_adc_reading(pin25_value);
@@ -212,14 +241,35 @@ async fn measure(gpio25: hal::gpio::Gpio25<hal::gpio::Unknown>, analog: Availabl
     }
 }
 
+async fn read_sample<'a>(
+    adc2: &mut ADC<'a, ADC2>,
+    pin25: &mut AdcPin<Gpio25<Analog>, ADC2>,
+) -> Result<u16, &'static str> {
+    let mut samples = heapless::Vec::<_, SAMPLE_COUNT>::new();
+    for _ in 0..samples.capacity() {
+        let sample = poll(|| adc2.read(pin25))
+            .await
+            .map_err(|_| "failed to read ADC value")?;
+
+        samples.push(sample).map_err(|_| "failed to store sample")?;
+    }
+
+    Ok(compute_median(&mut samples))
+}
+
 #[embassy_executor::task]
-async fn display(i2c: I2C<'static, hal::peripherals::I2C0>) {
+async fn display_task(i2c: I2C<'static, hal::peripherals::I2C0>) {
+    display(i2c).await.expect("display task failed");
+}
+
+async fn display(i2c: I2C<'static, hal::peripherals::I2C0>) -> Result<(), &'static str> {
     let interface = I2CDisplayInterface::new(i2c);
     let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
         .into_buffered_graphics_mode();
-    display.init().unwrap();
+    display
+        .init()
+        .map_err(|_| "display initialization failed")?;
 
-    // Specify different text styles
     let text_style_big = MonoTextStyleBuilder::new()
         .font(&FONT_10X20)
         .text_color(BinaryColor::On)
@@ -229,8 +279,7 @@ async fn display(i2c: I2C<'static, hal::peripherals::I2C0>) {
 
     loop {
         let (height, dir) = HEIGHT.wait().await;
-        let mut string = heapless::String::<10>::new();
-        write!(&mut string, "{:>3}cm", height.as_cm()).unwrap();
+        let string = format!(10, "{:>3}cm", height.as_cm());
 
         let text = Text::with_alignment(
             &string,
@@ -239,7 +288,7 @@ async fn display(i2c: I2C<'static, hal::peripherals::I2C0>) {
             Alignment::Center,
         );
 
-        text.draw(&mut display).unwrap();
+        text.draw(&mut display).map_err(|_| "failed to draw text")?;
 
         let rect = Rectangle::new(
             text.bounding_box()
@@ -252,7 +301,7 @@ async fn display(i2c: I2C<'static, hal::peripherals::I2C0>) {
             Direction::Stopped => rect.draw_styled(&prim_style, &mut display),
             Direction::Down => triangle(rect, false).draw_styled(&prim_style, &mut display),
         }
-        .unwrap();
+        .map_err(|_| "failed to draw direction indicator")?;
 
         display.flush().unwrap();
         display.clear();
@@ -325,21 +374,7 @@ fn main() -> ! {
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {
-        spawner.spawn(measure(io.pins.gpio25, analog)).unwrap();
-        spawner.spawn(display(i2c)).unwrap();
+        spawner.spawn(measure_task(io.pins.gpio25, analog)).unwrap();
+        spawner.spawn(display_task(i2c)).unwrap();
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_adc_conversion() {
-        //(952, Millimeters(86)),
-        //(1432, Millimeters(172)),
-        //(1893, Millimeters(258)),
-        //(2204, Millimeters(316)),
-        //(2572, Millimeters(386)),
-    }
 }
