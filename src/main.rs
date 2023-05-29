@@ -5,11 +5,13 @@
 use core::fmt::Write;
 use embassy_executor::Executor;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Instant, Timer};
+use embedded_graphics::geometry::AnchorPoint;
 use embedded_graphics::mono_font::ascii::FONT_10X20;
 use embedded_graphics::mono_font::MonoTextStyleBuilder;
 use embedded_graphics::pixelcolor::BinaryColor;
 use embedded_graphics::prelude::*;
+use embedded_graphics::primitives::{PrimitiveStyle, Rectangle, StyledDrawable, Triangle};
 use embedded_graphics::text::{Alignment, Text};
 use esp_backtrace as _;
 use esp_println::println;
@@ -33,6 +35,36 @@ async fn poll<T, E>(mut f: impl FnMut() -> nb::Result<T, E>) -> Result<T, E> {
             Err(nb::Error::Other(err)) => break Err(err),
             Err(nb::Error::WouldBlock) => embassy_futures::yield_now().await,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Direction {
+    Up,
+    Stopped,
+    Down,
+}
+
+impl Direction {
+    pub fn estimate_from_slope(slope: f32) -> Self {
+        const STOPPED: f32 = 1.3;
+        if slope < -STOPPED {
+            Self::Down
+        } else if slope > STOPPED {
+            Self::Up
+        } else {
+            Self::Stopped
+        }
+    }
+}
+
+impl core::fmt::Display for Direction {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        f.write_str(match self {
+            Direction::Up => "▲",
+            Direction::Stopped => "■",
+            Direction::Down => "▼",
+        })
     }
 }
 
@@ -94,7 +126,54 @@ impl Millimeters {
     }
 }
 
-static HEIGHT: Signal<CriticalSectionRawMutex, Millimeters> = Signal::new();
+#[derive(Debug)]
+struct History<T, const N: usize>(heapless::Deque<T, N>);
+
+impl<T, const N: usize> History<T, N> {
+    pub fn new() -> Self {
+        Self(heapless::Deque::new())
+    }
+
+    pub fn add(&mut self, value: T) {
+        if self.0.len() >= self.0.capacity() {
+            self.0.pop_back();
+        }
+        if self.0.push_front(value).is_err() {
+            panic!("Failed to add value?");
+        }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &T> + ExactSizeIterator {
+        self.0.iter()
+    }
+}
+
+/// Compute trend line from history.
+/// ```math
+/// slope = {n\sum(xy) - \sum x \sum y \over n\sum x^2 - (\sum x)^2}
+/// ```
+/// ```math
+/// intercept = {\sum y - slope * \sum x \over n}
+/// ```
+fn lin_reg<const N: usize>(history: &History<u16, N>) -> (f32, f32) {
+    let len = history.iter().len() as f32;
+    let x = || (0..history.iter().len()).map(|x| x as f32);
+    let y = || history.iter().map(|y| *y as f32);
+    let sum_x: f32 = x().sum();
+    let sum_y: f32 = y().sum();
+    let sum_xx: f32 = x().map(|x| x * x).sum();
+    let sum_xy: f32 = x().zip(y()).map(|(x, y)| x * y).sum();
+
+    let slope = (len * sum_xy - sum_x * sum_y) / (len * sum_xx - sum_x * sum_x);
+    let intercept = (sum_y - slope * sum_x) / len;
+
+    (slope, intercept)
+}
+
+static HEIGHT: Signal<CriticalSectionRawMutex, (Millimeters, Direction)> = Signal::new();
+
+const SAMPLE_COUNT: usize = if cfg!(debug_assertions) { 32 } else { 64 };
+const HISTORY_COUNT: usize = 32;
 
 #[embassy_executor::task]
 async fn measure(gpio25: hal::gpio::Gpio25<hal::gpio::Unknown>, analog: AvailableAnalog) {
@@ -102,12 +181,34 @@ async fn measure(gpio25: hal::gpio::Gpio25<hal::gpio::Unknown>, analog: Availabl
     let mut pin25 = adc2_config.enable_pin(gpio25.into_analog(), Attenuation::Attenuation11dB);
     let mut adc2 = ADC::<ADC2>::adc(analog.adc2, adc2_config).unwrap();
 
+    let mut history = History::<_, HISTORY_COUNT>::new();
+
     loop {
-        let pin25_value: u16 = poll(|| adc2.read(&mut pin25)).await.unwrap();
+        let start = Instant::now();
+        let mut samples = heapless::Vec::<_, SAMPLE_COUNT>::new();
+        for _ in 0..samples.capacity() {
+            samples
+                .push(poll(|| adc2.read(&mut pin25)).await.unwrap())
+                .unwrap();
+        }
+
+        samples.sort_unstable();
+        let pin25_value = samples[samples.len() / 2];
+        let duration = start.elapsed();
+
         let value = Millimeters::from_adc_reading(pin25_value);
-        HEIGHT.signal(value);
-        println!("{value:?} = PIN25 ADC reading = {pin25_value}");
-        Timer::after(Duration::from_millis(100)).await;
+
+        history.add(pin25_value);
+        let (slope, intercept) = lin_reg(&history);
+        let dir = Direction::estimate_from_slope(slope);
+
+        HEIGHT.signal((value, dir));
+
+        println!(
+            "{value:?} = PIN25 ADC reading = {pin25_value}, waited {}",
+            duration.as_millis()
+        );
+        println!("slope = {slope}, intercept = {intercept}, dir = {dir}");
     }
 }
 
@@ -124,18 +225,33 @@ async fn display(i2c: I2C<'static, hal::peripherals::I2C0>) {
         .text_color(BinaryColor::On)
         .build();
 
+    let prim_style = PrimitiveStyle::with_fill(BinaryColor::On);
+
     loop {
-        let height = HEIGHT.wait().await;
+        let (height, dir) = HEIGHT.wait().await;
         let mut string = heapless::String::<10>::new();
-        write!(&mut string, "{}cm", height.as_cm()).unwrap();
-        
-        Text::with_alignment(
+        write!(&mut string, "{:>3}cm", height.as_cm()).unwrap();
+
+        let text = Text::with_alignment(
             &string,
-            display.bounding_box().center(),
+            display.bounding_box().anchor_point(AnchorPoint::Center),
             text_style_big,
             Alignment::Center,
-        )
-        .draw(&mut display)
+        );
+
+        text.draw(&mut display).unwrap();
+
+        let rect = Rectangle::new(
+            text.bounding_box()
+                .anchor_point(AnchorPoint::TopLeft)
+                .y_axis(),
+            Size::new_equal(text.bounding_box().size.height),
+        );
+        match dir {
+            Direction::Up => triangle(rect, true).draw_styled(&prim_style, &mut display),
+            Direction::Stopped => rect.draw_styled(&prim_style, &mut display),
+            Direction::Down => triangle(rect, false).draw_styled(&prim_style, &mut display),
+        }
         .unwrap();
 
         display.flush().unwrap();
@@ -143,6 +259,25 @@ async fn display(i2c: I2C<'static, hal::peripherals::I2C0>) {
 
         Timer::after(Duration::from_millis(100)).await;
     }
+}
+
+fn triangle(bounding_box: Rectangle, point_up: bool) -> Triangle {
+    let anchors = if point_up {
+        [
+            AnchorPoint::BottomLeft,
+            AnchorPoint::BottomRight,
+            AnchorPoint::TopCenter,
+        ]
+    } else {
+        [
+            AnchorPoint::BottomCenter,
+            AnchorPoint::TopLeft,
+            AnchorPoint::TopRight,
+        ]
+    };
+
+    let v = anchors.map(|a| bounding_box.anchor_point(a));
+    Triangle::new(v[0], v[1], v[2])
 }
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
