@@ -6,6 +6,7 @@ rustflags = [
   "-C", "link-arg=-Tlinkall.x",
   "-C", "link-arg=-nostartfiles",
 ]
+rustdocflags = ["--html-in-header", "./katex.html"]
 
 target = "xtensa-esp32-none-elf"
 
