@@ -169,12 +169,10 @@ impl<T, const N: usize> History<T, N> {
 }
 
 /// Compute trend line from history.
-/// ```math
-/// slope = {n\sum(xy) - \sum x \sum y \over n\sum x^2 - (\sum x)^2}
-/// ```
-/// ```math
-/// intercept = {\sum y - slope * \sum x \over n}
-/// ```
+///
+/// ![formula](https://laas.vercel.app/api/svg?input=slope%20=%20%7Bn%5Csum(xy)%20-%20%5Csum%20x%20%5Csum%20y%20%5Cover%20n%5Csum%20x%5E2%20-%20(%5Csum%20x)%5E2%7D%20%5C%5C%20intercept%20=%20%7B%5Csum%20y%20-%20slope%20*%20%5Csum%20x%20%5Cover%20n%7D)
+// slope = {n\sum(xy) - \sum x \sum y \over n\sum x^2 - (\sum x)^2}
+// intercept = {\sum y - slope * \sum x \over n}
 fn lin_reg<const N: usize>(history: &History<u16, N>) -> (f32, f32) {
     let len = history.iter().len() as f32;
     let x = || (0..history.iter().len()).map(|x| x as f32);
