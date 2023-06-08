@@ -1,0 +1,5 @@
+[wokwi]
+version = 1
+elf = "target/xtensa-esp32-none-elf/release/deposition"
+firmware = "target/xtensa-esp32-none-elf/release/deposition"
+gdbServerPort=3333

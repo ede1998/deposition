@@ -131,9 +131,9 @@ impl Millimeters {
                 let mm_from_left = slope * distance_reading_to_left;
                 let mm_from_left = mm_from_left as u16;
                 let abs_mm = if reading < left_adc {
-                    left_mm - mm_from_left
+                    left_mm.saturating_sub(mm_from_left)
                 } else {
-                    left_mm + mm_from_left
+                    left_mm.saturating_add(mm_from_left)
                 };
 
                 Millimeters(abs_mm)
@@ -219,9 +219,9 @@ async fn measure(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) -> Result<(),
     let mut history = History::<_, HISTORY_COUNT>::new();
 
     loop {
-        let start = Instant::now();
+        // let start = Instant::now();
         let pin25_value = read_sample(&mut adc2, &mut pin25).await?;
-        let duration = start.elapsed();
+        // let duration = start.elapsed();
 
         let value = Millimeters::from_adc_reading(pin25_value);
 
@@ -233,7 +233,8 @@ async fn measure(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) -> Result<(),
 
         println!(
             "{value:?} = PIN25 ADC reading = {pin25_value}, waited {}",
-            duration.as_millis()
+            0
+            // duration.as_millis()
         );
         println!("slope = {slope}, intercept = {intercept}, dir = {dir}");
     }
