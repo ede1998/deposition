@@ -2,7 +2,6 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use core::fmt::Write;
 use embassy_executor::Executor;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Instant, Timer};
@@ -29,24 +28,8 @@ use hal::{
 use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
 use static_cell::StaticCell;
 
-fn format<const N: usize>(args: core::fmt::Arguments) -> heapless::String<N> {
-    fn format_inner<const N: usize>(args: core::fmt::Arguments) -> heapless::String<N> {
-        let mut output = heapless::String::new();
-        output
-            .write_fmt(args)
-            .expect("a formatting trait implementation returned an error");
-        output
-    }
 
-    args.as_str()
-        .map_or_else(|| format_inner(args), heapless::String::from)
-}
-macro_rules! format {
-    ($max:literal, $($arg:tt)*) => {{
-        let res = format::<$max>(core::format_args!($($arg)*));
-        res
-    }}
-}
+mod string_format;
 
 async fn poll<T, E>(mut f: impl FnMut() -> nb::Result<T, E>) -> Result<T, E> {
     loop {
