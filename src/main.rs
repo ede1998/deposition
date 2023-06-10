@@ -30,10 +30,11 @@ use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
 use static_cell::StaticCell;
 
 mod history;
+mod menu;
 mod millimeters;
 mod string_format;
 
-use history::{lin_reg, History, Direction};
+use history::{lin_reg, Direction, History};
 use millimeters::Millimeters;
 
 async fn poll<T, E>(mut f: impl FnMut() -> nb::Result<T, E>) -> Result<T, E> {
