@@ -65,9 +65,9 @@ impl Direction {
 impl core::fmt::Display for Direction {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         f.write_str(match self {
-            Direction::Up => "▲",
-            Direction::Stopped => "■",
-            Direction::Down => "▼",
+            Direction::Up => "+",
+            Direction::Stopped => "0",
+            Direction::Down => "-",
         })
     }
 }

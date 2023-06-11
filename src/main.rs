@@ -2,17 +2,10 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
+use data::{init_calibration, CALIBRATION};
 use embassy_executor::Executor;
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use embassy_time::{Duration, Timer};
 //use embassy_time::Instant;
-use embedded_graphics::geometry::AnchorPoint;
-use embedded_graphics::mono_font::ascii::FONT_10X20;
-use embedded_graphics::mono_font::MonoTextStyleBuilder;
-use embedded_graphics::pixelcolor::BinaryColor;
-use embedded_graphics::prelude::*;
-use embedded_graphics::primitives::{PrimitiveStyle, Rectangle, StyledDrawable, Triangle};
-use embedded_graphics::text::{Alignment, Text};
 use esp_backtrace as _;
 use esp_println::println;
 use hal::{
@@ -26,16 +19,18 @@ use hal::{
     timer::TimerGroup,
     Rtc, IO,
 };
+use menu::Menu;
 use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
 use static_cell::StaticCell;
 
+mod data;
 mod history;
 mod menu;
-mod millimeters;
 mod string_format;
 
 use history::{lin_reg, Direction, History};
-use millimeters::Millimeters;
+
+use crate::data::HEIGHT;
 
 async fn poll<T, E>(mut f: impl FnMut() -> nb::Result<T, E>) -> Result<T, E> {
     loop {
@@ -59,8 +54,6 @@ fn compute_median(samples: &mut [u16]) -> u16 {
     }
 }
 
-static HEIGHT: Signal<CriticalSectionRawMutex, (Millimeters, Direction)> = Signal::new();
-
 const SAMPLE_COUNT: usize = if cfg!(debug_assertions) { 32 } else { 64 };
 const HISTORY_COUNT: usize = 32;
 
@@ -75,20 +68,28 @@ async fn measure(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) -> Result<(),
     let mut adc2 =
         ADC::<ADC2>::adc(analog.adc2, adc2_config).map_err(|_| "ADC initialization failed")?;
 
+    init_calibration();
+
     let mut history = History::<_, HISTORY_COUNT>::new();
 
+    let mut calibration = CALIBRATION.wait().await;
+
     loop {
+        if CALIBRATION.signaled() {
+            calibration = CALIBRATION.wait().await;
+        }
+
         // let start = Instant::now();
         let pin25_value = read_sample(&mut adc2, &mut pin25).await?;
         // let duration = start.elapsed();
 
-        let value = Millimeters::from_adc_reading(pin25_value);
+        let value = calibration.transform(pin25_value);
 
         history.add(pin25_value);
         let (slope, intercept) = lin_reg(&history);
         let dir = Direction::estimate_from_slope(slope);
 
-        HEIGHT.signal((value, dir));
+        HEIGHT.signal(value);
 
         println!(
             "{value:?} = PIN25 ADC reading = {pin25_value}, waited {}",
@@ -127,63 +128,16 @@ async fn display(i2c: I2C<'static, hal::peripherals::I2C0>) -> Result<(), &'stat
         .init()
         .map_err(|_| "display initialization failed")?;
 
-    let text_style_big = MonoTextStyleBuilder::new()
-        .font(&FONT_10X20)
-        .text_color(BinaryColor::On)
-        .build();
-
-    let prim_style = PrimitiveStyle::with_fill(BinaryColor::On);
+    let mut menu = Menu::default();
 
     loop {
-        let (height, dir) = HEIGHT.wait().await;
-        let string = format!(10, "{:>3}cm", height.as_cm());
-
-        let text = Text::with_alignment(
-            &string,
-            display.bounding_box().anchor_point(AnchorPoint::Center),
-            text_style_big,
-            Alignment::Center,
-        );
-
-        text.draw(&mut display).map_err(|_| "failed to draw text")?;
-
-        let rect = Rectangle::new(
-            text.bounding_box()
-                .anchor_point(AnchorPoint::TopLeft)
-                .y_axis(),
-            Size::new_equal(text.bounding_box().size.height),
-        );
-        match dir {
-            Direction::Up => triangle(rect, true).draw_styled(&prim_style, &mut display),
-            Direction::Stopped => rect.draw_styled(&prim_style, &mut display),
-            Direction::Down => triangle(rect, false).draw_styled(&prim_style, &mut display),
-        }
-        .map_err(|_| "failed to draw direction indicator")?;
-
-        display.flush().unwrap();
         display.clear();
+        menu.update(None).await;
+        menu.display(&mut display).await?;
+        display.flush().map_err(|_| "flushing failed")?;
 
         Timer::after(Duration::from_millis(100)).await;
     }
-}
-
-fn triangle(bounding_box: Rectangle, point_up: bool) -> Triangle {
-    let anchors = if point_up {
-        [
-            AnchorPoint::BottomLeft,
-            AnchorPoint::BottomRight,
-            AnchorPoint::TopCenter,
-        ]
-    } else {
-        [
-            AnchorPoint::BottomCenter,
-            AnchorPoint::TopLeft,
-            AnchorPoint::TopRight,
-        ]
-    };
-
-    let v = anchors.map(|a| bounding_box.anchor_point(a));
-    Triangle::new(v[0], v[1], v[2])
 }
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
