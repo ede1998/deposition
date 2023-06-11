@@ -14,13 +14,14 @@ use crate::{
     history::Direction,
 };
 
-use super::{Input, Menu};
+use super::{Action, Button, Input, Menu};
 
 #[derive(Debug)]
 pub struct Start {
     text_style: MonoTextStyle<'static, BinaryColor>,
     prim_style: PrimitiveStyle<BinaryColor>,
     current_height: Option<Millimeters>,
+    current_direction: Direction,
 }
 
 impl Default for Start {
@@ -34,6 +35,7 @@ impl Default for Start {
             text_style,
             prim_style,
             current_height: None,
+            current_direction: Direction::Stopped,
         }
     }
 }
@@ -41,6 +43,20 @@ impl Default for Start {
 impl Start {
     pub async fn update(&mut self, input: Option<Input>) -> Option<Menu> {
         self.current_height = Some(HEIGHT.wait().await);
+        let input = input?;
+        let pot_direction = match input.button {
+            Button::Up => Direction::Up,
+            Button::Down => Direction::Down,
+            _ => return None,
+        };
+
+        match input.action {
+            Action::Pressed | Action::Held => {
+                self.current_direction = pot_direction;
+            }
+            Action::Released => self.current_direction = Direction::Stopped,
+        }
+
         None
     }
 
@@ -69,8 +85,7 @@ impl Start {
             Size::new_equal(text.bounding_box().size.height),
         );
 
-        let dir = Direction::Up;
-        match dir {
+        match self.current_direction {
             Direction::Up => triangle(rect, true).draw_styled(&self.prim_style, display),
             Direction::Stopped => rect.draw_styled(&self.prim_style, display),
             Direction::Down => triangle(rect, false).draw_styled(&self.prim_style, display),

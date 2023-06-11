@@ -2,7 +2,7 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use data::{init_calibration, CALIBRATION};
+use debouncr::DebouncerStateful;
 use embassy_executor::Executor;
 use embassy_time::{Duration, Timer};
 //use embassy_time::Instant;
@@ -19,18 +19,23 @@ use hal::{
     timer::TimerGroup,
     Rtc, IO,
 };
-use menu::Menu;
 use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
 use static_cell::StaticCell;
+use unwrap_infallible::UnwrapInfallible;
 
 mod data;
 mod history;
 mod menu;
 mod string_format;
 
+use data::{init_calibration, CALIBRATION, HEIGHT};
 use history::{lin_reg, Direction, History};
+use menu::{Button, Menu};
 
-use crate::data::HEIGHT;
+use crate::{
+    data::INPUT,
+    menu::{Action, Input},
+};
 
 async fn poll<T, E>(mut f: impl FnMut() -> nb::Result<T, E>) -> Result<T, E> {
     loop {
@@ -56,6 +61,65 @@ fn compute_median(samples: &mut [u16]) -> u16 {
 
 const SAMPLE_COUNT: usize = if cfg!(debug_assertions) { 32 } else { 64 };
 const HISTORY_COUNT: usize = 32;
+
+type InputPin = hal::gpio::AnyPin<hal::gpio::Input<hal::gpio::PullUp>>;
+
+#[embassy_executor::task]
+async fn read_input(up: InputPin, down: InputPin, pos1: InputPin, pos2: InputPin) {
+    struct DebouncedPin {
+        pin: InputPin,
+        button: Button,
+        debouncer: DebouncerStateful<u8, debouncr::Repeat4>,
+    }
+
+    impl DebouncedPin {
+        fn new(pin: InputPin, button: Button) -> Self {
+            let debouncer = debouncr::debounce_stateful_4(false);
+            Self {
+                pin,
+                button,
+                debouncer,
+            }
+        }
+
+        fn update(&mut self) -> Option<Input> {
+            let active = self.pin.is_low().unwrap_infallible();
+            let state = self.debouncer.update(active);
+            let action = match state {
+                Some(debouncr::Edge::Rising) => Some(Action::Pressed),
+                Some(debouncr::Edge::Falling) => Some(Action::Released),
+                None if self.debouncer.is_high() => Some(Action::Held),
+                None => None,
+            }?;
+
+            println!("Button {:?}: {action:?}", self.button);
+
+            Some(Input {
+                button: self.button,
+                action,
+            })
+        }
+    }
+
+    let mut pins = [
+        DebouncedPin::new(up, Button::Up),
+        DebouncedPin::new(down, Button::Down),
+        DebouncedPin::new(pos1, Button::Height1),
+        DebouncedPin::new(pos2, Button::Height2),
+    ];
+
+    loop {
+        let mut inputs: heapless::Vec<_, 4> =
+            pins.iter_mut().filter_map(|pin| pin.update()).collect();
+
+        // TODO handle multiple parallel button presses
+        if let Some(input) = inputs.pop() {
+            INPUT.signal(input);
+        }
+
+        Timer::after(Duration::from_millis(5)).await;
+    }
+}
 
 #[embassy_executor::task]
 async fn measure_task(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) {
@@ -132,7 +196,12 @@ async fn display(i2c: I2C<'static, hal::peripherals::I2C0>) -> Result<(), &'stat
 
     loop {
         display.clear();
-        menu.update(None).await;
+        let input = if INPUT.signaled() {
+            Some(INPUT.wait().await)
+        } else {
+            None
+        };
+        menu.update(input).await;
         menu.display(&mut display).await?;
         display.flush().map_err(|_| "flushing failed")?;
 
@@ -182,10 +251,15 @@ fn main() -> ! {
         &mut system.peripheral_clock_control,
         &clocks,
     );
+    let up = io.pins.gpio18.into_pull_up_input().degrade();
+    let down = io.pins.gpio19.into_pull_up_input().degrade();
+    let pos1 = io.pins.gpio4.into_pull_up_input().degrade();
+    let pos2 = io.pins.gpio2.into_pull_up_input().degrade();
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {
         spawner.spawn(measure_task(io.pins.gpio25, analog)).unwrap();
         spawner.spawn(display_task(i2c)).unwrap();
+        spawner.spawn(read_input(up, down, pos1, pos2)).unwrap();
     });
 }

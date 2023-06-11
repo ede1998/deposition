@@ -32,7 +32,7 @@ impl Menu {
         D: DrawTarget<Color = BinaryColor> + Dimensions,
     {
         match self {
-            Menu::Start(start) => start.display(display).await,
+            Self::Start(start) => start.display(display).await,
             _ => unimplemented!(),
         }
     }
@@ -81,6 +81,6 @@ pub enum Action {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Input {
-    button: Button,
-    action: Action,
+    pub button: Button,
+    pub action: Action,
 }

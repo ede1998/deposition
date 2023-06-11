@@ -1,7 +1,10 @@
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
 use heapless::Vec;
 
+use crate::menu::Input;
+
 pub static HEIGHT: Signal<CriticalSectionRawMutex, Millimeters> = Signal::new();
+pub static INPUT: Signal<CriticalSectionRawMutex, Input> = Signal::new();
 
 pub static CALIBRATION: Signal<CriticalSectionRawMutex, Calibration> = Signal::new();
 
