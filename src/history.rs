@@ -42,11 +42,12 @@ pub fn lin_reg<const N: usize>(history: &History<u16, N>) -> (f32, f32) {
 }
 
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     Up,
     Stopped,
     Down,
+    ResetDrive,
 }
 
 impl Direction {
@@ -68,6 +69,7 @@ impl core::fmt::Display for Direction {
             Direction::Up => "+",
             Direction::Stopped => "0",
             Direction::Down => "-",
+            Direction::ResetDrive => "R",
         })
     }
 }

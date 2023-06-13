@@ -7,9 +7,10 @@ use embedded_graphics::{
     text::{Alignment, Text},
     Drawable,
 };
+use esp_println::println;
 
 use crate::{
-    data::{Millimeters, HEIGHT},
+    data::{Millimeters, DIRECTION, HEIGHT},
     format,
     history::Direction,
 };
@@ -43,6 +44,8 @@ impl Default for Start {
 impl Start {
     pub async fn update(&mut self, input: Option<Input>) -> Option<Menu> {
         self.current_height = Some(HEIGHT.wait().await);
+        self.current_direction = DIRECTION.get().await;
+        println!("input: {input:?}");
         let input = input?;
         let pot_direction = match input.button {
             Button::Up => Direction::Up,
@@ -51,10 +54,13 @@ impl Start {
         };
 
         match input.action {
-            Action::Pressed | Action::Held => {
-                self.current_direction = pot_direction;
+            Action::Pressed => {
+                DIRECTION.request(pot_direction).await;
             }
-            Action::Released => self.current_direction = Direction::Stopped,
+            Action::Released => {
+                DIRECTION.request(pot_direction).await;
+            }
+            _ => {}
         }
 
         None
@@ -89,6 +95,7 @@ impl Start {
             Direction::Up => triangle(rect, true).draw_styled(&self.prim_style, display),
             Direction::Stopped => rect.draw_styled(&self.prim_style, display),
             Direction::Down => triangle(rect, false).draw_styled(&self.prim_style, display),
+            Direction::ResetDrive => unimplemented!(),
         }
         .map_err(|_| "failed to draw direction indicator")?;
         Ok(())

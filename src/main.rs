@@ -28,7 +28,7 @@ mod history;
 mod menu;
 mod string_format;
 
-use data::{init_calibration, CALIBRATION, HEIGHT};
+use data::{init_calibration, CALIBRATION, DIRECTION, HEIGHT};
 use history::{lin_reg, Direction, History};
 use menu::{Button, Menu};
 
@@ -63,6 +63,39 @@ const SAMPLE_COUNT: usize = if cfg!(debug_assertions) { 32 } else { 64 };
 const HISTORY_COUNT: usize = 32;
 
 type InputPin = hal::gpio::AnyPin<hal::gpio::Input<hal::gpio::PullUp>>;
+type OutputPin = hal::gpio::AnyPin<hal::gpio::Output<hal::gpio::PushPull>>;
+
+#[embassy_executor::task]
+async fn drive(mut up: OutputPin, mut down: OutputPin) {
+    up.set_low().unwrap();
+    down.set_low().unwrap();
+    loop {
+        Timer::after(Duration::from_millis(5)).await;
+        let Some(direction) = DIRECTION.planned().await else {
+            continue;
+        };
+        println!("Setting direction {direction}");
+        match direction {
+            Direction::Up => {
+                down.set_low().unwrap();
+                up.set_high().unwrap();
+            }
+            Direction::Down => {
+                up.set_low().unwrap();
+                down.set_high().unwrap();
+            }
+            Direction::Stopped => {
+                up.set_low().unwrap();
+                down.set_low().unwrap();
+            }
+            Direction::ResetDrive => {
+                up.set_high().unwrap();
+                down.set_high().unwrap();
+            }
+        }
+        DIRECTION.acknowledge(direction).await;
+    }
+}
 
 #[embassy_executor::task]
 async fn read_input(up: InputPin, down: InputPin, pos1: InputPin, pos2: InputPin) {
@@ -155,11 +188,11 @@ async fn measure(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) -> Result<(),
 
         HEIGHT.signal(value);
 
-        println!(
-            "{value:?} = PIN25 ADC reading = {pin25_value}, waited {}",
-            0 // duration.as_millis()
-        );
-        println!("slope = {slope}, intercept = {intercept}, dir = {dir}");
+        //println!(
+        //    "{value:?} = PIN25 ADC reading = {pin25_value}, waited {}",
+        //    0 // duration.as_millis()
+        //);
+        //println!("slope = {slope}, intercept = {intercept}, dir = {dir}");
     }
 }
 
@@ -251,15 +284,19 @@ fn main() -> ! {
         &mut system.peripheral_clock_control,
         &clocks,
     );
-    let up = io.pins.gpio18.into_pull_up_input().degrade();
-    let down = io.pins.gpio19.into_pull_up_input().degrade();
-    let pos1 = io.pins.gpio4.into_pull_up_input().degrade();
-    let pos2 = io.pins.gpio2.into_pull_up_input().degrade();
+    let btn_up = io.pins.gpio18.into_pull_up_input().degrade();
+    let btn_down = io.pins.gpio19.into_pull_up_input().degrade();
+    let btn_pos1 = io.pins.gpio4.into_pull_up_input().degrade();
+    let btn_pos2 = io.pins.gpio2.into_pull_up_input().degrade();
+
+    let up = io.pins.gpio14.into_push_pull_output().degrade();
+    let down = io.pins.gpio12.into_push_pull_output().degrade();
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {
         spawner.spawn(measure_task(io.pins.gpio25, analog)).unwrap();
         spawner.spawn(display_task(i2c)).unwrap();
-        spawner.spawn(read_input(up, down, pos1, pos2)).unwrap();
+        spawner.spawn(read_input(btn_up, btn_down, btn_pos1, btn_pos2)).unwrap();
+        spawner.spawn(drive(up, down)).unwrap();
     });
 }

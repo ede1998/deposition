@@ -1,10 +1,51 @@
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, signal::Signal};
+
+use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, signal::Signal};
+use esp_println::println;
 use heapless::Vec;
 
-use crate::menu::Input;
+use crate::{history::Direction, menu::Input};
 
 pub static HEIGHT: Signal<CriticalSectionRawMutex, Millimeters> = Signal::new();
-pub static INPUT: Signal<CriticalSectionRawMutex, Input> = Signal::new();
+pub static INPUT: Signal<CriticalSectionRawMutex, Input> = Signal::new(); // own struct with static consumer substruct -> caches signal value for rising/falling flank?
+
+pub static DIRECTION: DirectionControl = DirectionControl::new();
+
+pub struct DirectionControl {
+    requested: Mutex<CriticalSectionRawMutex, Direction>,
+    current: Mutex<CriticalSectionRawMutex, Direction>,
+}
+
+impl DirectionControl {
+    pub const fn new() -> Self {
+        Self {
+            requested: Mutex::new(Direction::Stopped),
+            current: Mutex::new(Direction::Stopped),
+        }
+    }
+
+    pub async fn request(&self, new_direction: Direction) {
+        println!("Req: {new_direction}");
+        *self.requested.lock().await = new_direction;
+    }
+
+    pub async fn get(&self) -> Direction {
+        *self.current.lock().await
+    }
+
+    pub async fn planned(&self) -> Option<Direction> {
+        let (cur, req) = {
+            let cur_guard = self.current.lock().await;
+            let req_guard = self.requested.lock().await;
+            (*cur_guard, *req_guard)
+        };
+
+        Some(req).filter(|&req| req != cur)
+    }
+
+    pub async fn acknowledge(&self, direction: Direction) {
+        *self.current.lock().await = direction;
+    }
+}
 
 pub static CALIBRATION: Signal<CriticalSectionRawMutex, Calibration> = Signal::new();
 
