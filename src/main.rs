@@ -30,11 +30,10 @@ mod string_format;
 
 use data::{init_calibration, CALIBRATION, DIRECTION, HEIGHT};
 use history::{lin_reg, Direction, History};
-use menu::{Button, Menu};
 
 use crate::{
     data::INPUT,
-    menu::{Action, Input},
+    menu::{Inputs, Menu, StateTracker},
 };
 
 async fn poll<T, E>(mut f: impl FnMut() -> nb::Result<T, E>) -> Result<T, E> {
@@ -101,54 +100,41 @@ async fn drive(mut up: OutputPin, mut down: OutputPin) {
 async fn read_input(up: InputPin, down: InputPin, pos1: InputPin, pos2: InputPin) {
     struct DebouncedPin {
         pin: InputPin,
-        button: Button,
         debouncer: DebouncerStateful<u8, debouncr::Repeat4>,
     }
 
     impl DebouncedPin {
-        fn new(pin: InputPin, button: Button) -> Self {
+        fn new(pin: InputPin) -> Self {
             let debouncer = debouncr::debounce_stateful_4(false);
-            Self {
-                pin,
-                button,
-                debouncer,
-            }
+            Self { pin, debouncer }
         }
 
-        fn update(&mut self) -> Option<Input> {
+        fn update_input(&mut self, input: &mut StateTracker) {
             let active = self.pin.is_low().unwrap_infallible();
-            let state = self.debouncer.update(active);
-            let action = match state {
-                Some(debouncr::Edge::Rising) => Some(Action::Pressed),
-                Some(debouncr::Edge::Falling) => Some(Action::Released),
-                None if self.debouncer.is_high() => Some(Action::Held),
-                None => None,
-            }?;
-
-            println!("Button {:?}: {action:?}", self.button);
-
-            Some(Input {
-                button: self.button,
-                action,
-            })
+            let Some(state) = self.debouncer.update(active) else {
+                return;
+            };
+            match state {
+                debouncr::Edge::Rising => input.press(),
+                debouncr::Edge::Falling => input.release(),
+            }
         }
     }
 
-    let mut pins = [
-        DebouncedPin::new(up, Button::Up),
-        DebouncedPin::new(down, Button::Down),
-        DebouncedPin::new(pos1, Button::Height1),
-        DebouncedPin::new(pos2, Button::Height2),
-    ];
+    let mut up = DebouncedPin::new(up);
+    let mut down = DebouncedPin::new(down);
+    let mut pos1 = DebouncedPin::new(pos1);
+    let mut pos2 = DebouncedPin::new(pos2);
+
+    let mut inputs = Inputs::default();
 
     loop {
-        let mut inputs: heapless::Vec<_, 4> =
-            pins.iter_mut().filter_map(|pin| pin.update()).collect();
+        up.update_input(&mut inputs.up);
+        down.update_input(&mut inputs.down);
+        pos1.update_input(&mut inputs.pos1);
+        pos2.update_input(&mut inputs.pos2);
 
-        // TODO handle multiple parallel button presses
-        if let Some(input) = inputs.pop() {
-            INPUT.signal(input);
-        }
+        *INPUT.lock().await = inputs.clone();
 
         Timer::after(Duration::from_millis(5)).await;
     }
@@ -186,7 +172,7 @@ async fn measure(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) -> Result<(),
         let (slope, intercept) = lin_reg(&history);
         let dir = Direction::estimate_from_slope(slope);
 
-        HEIGHT.signal(value);
+        *HEIGHT.lock().await = value;
 
         //println!(
         //    "{value:?} = PIN25 ADC reading = {pin25_value}, waited {}",
@@ -229,12 +215,7 @@ async fn display(i2c: I2C<'static, hal::peripherals::I2C0>) -> Result<(), &'stat
 
     loop {
         display.clear();
-        let input = if INPUT.signaled() {
-            Some(INPUT.wait().await)
-        } else {
-            None
-        };
-        menu.update(input).await;
+        menu.update().await;
         menu.display(&mut display).await?;
         display.flush().map_err(|_| "flushing failed")?;
 
@@ -296,7 +277,9 @@ fn main() -> ! {
     executor.run(|spawner| {
         spawner.spawn(measure_task(io.pins.gpio25, analog)).unwrap();
         spawner.spawn(display_task(i2c)).unwrap();
-        spawner.spawn(read_input(btn_up, btn_down, btn_pos1, btn_pos2)).unwrap();
+        spawner
+            .spawn(read_input(btn_up, btn_down, btn_pos1, btn_pos2))
+            .unwrap();
         spawner.spawn(drive(up, down)).unwrap();
     });
 }

@@ -7,15 +7,14 @@ use embedded_graphics::{
     text::{Alignment, Text},
     Drawable,
 };
-use esp_println::println;
 
 use crate::{
-    data::{Millimeters, DIRECTION, HEIGHT},
+    data::{Millimeters, DIRECTION, HEIGHT, INPUT},
     format,
     history::Direction,
 };
 
-use super::{Action, Button, Input, Menu};
+use super::{Button, Inputs, Menu};
 
 #[derive(Debug)]
 pub struct Start {
@@ -23,6 +22,7 @@ pub struct Start {
     prim_style: PrimitiveStyle<BinaryColor>,
     current_height: Option<Millimeters>,
     current_direction: Direction,
+    current_input: Inputs,
 }
 
 impl Default for Start {
@@ -37,30 +37,36 @@ impl Default for Start {
             prim_style,
             current_height: None,
             current_direction: Direction::Stopped,
+            current_input: Inputs::default(),
         }
     }
 }
 
 impl Start {
-    pub async fn update(&mut self, input: Option<Input>) -> Option<Menu> {
-        self.current_height = Some(HEIGHT.wait().await);
+    pub async fn update(&mut self) -> Option<Menu> {
+        self.current_height = Some(*HEIGHT.lock().await);
         self.current_direction = DIRECTION.get().await;
-        println!("input: {input:?}");
-        let input = input?;
-        let pot_direction = match input.button {
-            Button::Up => Direction::Up,
-            Button::Down => Direction::Down,
-            _ => return None,
-        };
+        let inputs = INPUT.lock().await.clone();
 
-        match input.action {
-            Action::Pressed => {
-                DIRECTION.request(pot_direction).await;
+        let changes = inputs.changed_since(&self.current_input);
+
+        self.current_input = inputs;
+
+        match changes.pressed_exclusive() {
+            Some(Button::Up) => {
+                DIRECTION.request(Direction::Up).await;
             }
-            Action::Released => {
-                DIRECTION.request(pot_direction).await;
+            Some(Button::Down) => {
+                DIRECTION.request(Direction::Down).await;
             }
             _ => {}
+        }
+
+        if changes.released(Button::Up) && self.current_direction == Direction::Up {
+            DIRECTION.request(Direction::Stopped).await;
+        }
+        if changes.released(Button::Down) && self.current_direction == Direction::Down {
+            DIRECTION.request(Direction::Stopped).await;
         }
 
         None

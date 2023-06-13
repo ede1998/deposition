@@ -1,12 +1,11 @@
-
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, signal::Signal};
 use esp_println::println;
 use heapless::Vec;
 
-use crate::{history::Direction, menu::Input};
+use crate::{history::Direction, menu::Inputs};
 
-pub static HEIGHT: Signal<CriticalSectionRawMutex, Millimeters> = Signal::new();
-pub static INPUT: Signal<CriticalSectionRawMutex, Input> = Signal::new(); // own struct with static consumer substruct -> caches signal value for rising/falling flank?
+pub static HEIGHT: Mutex<CriticalSectionRawMutex, Millimeters> = Mutex::new(Millimeters(0));
+pub static INPUT: Mutex<CriticalSectionRawMutex, Inputs> = Mutex::new(Inputs::new());
 
 pub static DIRECTION: DirectionControl = DirectionControl::new();
 

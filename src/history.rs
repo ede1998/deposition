@@ -1,4 +1,3 @@
-
 #[derive(Debug)]
 pub struct History<T, const N: usize>(heapless::Deque<T, N>);
 
@@ -40,7 +39,6 @@ pub fn lin_reg<const N: usize>(history: &History<u16, N>) -> (f32, f32) {
 
     (slope, intercept)
 }
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
