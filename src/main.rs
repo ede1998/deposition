@@ -24,17 +24,16 @@ use static_cell::StaticCell;
 use unwrap_infallible::UnwrapInfallible;
 
 mod data;
+mod gui;
 mod history;
-mod menu;
+mod input;
 mod string_format;
+mod operation_mode;
 
-use data::{init_calibration, CALIBRATION, DIRECTION, HEIGHT};
+use data::{init_calibration, CALIBRATION, DIRECTION, GUI_MENU, HEIGHT};
 use history::{lin_reg, Direction, History};
 
-use crate::{
-    data::INPUT,
-    menu::{Inputs, Menu, StateTracker},
-};
+use crate::{data::INPUT, input::{StateTracker, Inputs}};
 
 async fn poll<T, E>(mut f: impl FnMut() -> nb::Result<T, E>) -> Result<T, E> {
     loop {
@@ -211,16 +210,18 @@ async fn display(i2c: I2C<'static, hal::peripherals::I2C0>) -> Result<(), &'stat
         .init()
         .map_err(|_| "display initialization failed")?;
 
-    let mut menu = Menu::default();
-
     loop {
+        let menu = GUI_MENU.wait().await;
+
         display.clear();
-        menu.update().await;
         menu.display(&mut display).await?;
         display.flush().map_err(|_| "flushing failed")?;
-
-        Timer::after(Duration::from_millis(100)).await;
     }
+}
+
+#[embassy_executor::task]
+async fn run() {
+    operation_mode::run().await.expect("run task failed");
 }
 
 static EXECUTOR: StaticCell<Executor> = StaticCell::new();
@@ -281,5 +282,6 @@ fn main() -> ! {
             .spawn(read_input(btn_up, btn_down, btn_pos1, btn_pos2))
             .unwrap();
         spawner.spawn(drive(up, down)).unwrap();
+        spawner.spawn(run()).unwrap();
     });
 }

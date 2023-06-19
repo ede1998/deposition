@@ -2,10 +2,12 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, s
 use esp_println::println;
 use heapless::Vec;
 
-use crate::{history::Direction, menu::Inputs};
+use crate::{history::Direction, input::Inputs, gui::Menu};
 
 pub static HEIGHT: Mutex<CriticalSectionRawMutex, Millimeters> = Mutex::new(Millimeters(0));
 pub static INPUT: Mutex<CriticalSectionRawMutex, Inputs> = Mutex::new(Inputs::new());
+
+pub static GUI_MENU: Signal<CriticalSectionRawMutex, Menu> = Signal::new();
 
 pub static DIRECTION: DirectionControl = DirectionControl::new();
 
