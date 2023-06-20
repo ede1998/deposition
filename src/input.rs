@@ -37,7 +37,7 @@ impl Inputs {
     {
         loop {
             let input = INPUT.lock().await.clone();
-            let changes = input.changed_since(&self);
+            let changes = input.changed_since(self);
             *self = input;
             match check(changes) {
                 Some(res) => break res,

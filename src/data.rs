@@ -1,8 +1,10 @@
+use core::cmp::Ordering;
+
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, signal::Signal};
 use esp_println::println;
 use heapless::Vec;
 
-use crate::{history::Direction, input::Inputs, gui::Menu};
+use crate::{gui::Menu, history::Direction, input::Inputs};
 
 pub static HEIGHT: Mutex<CriticalSectionRawMutex, Millimeters> = Mutex::new(Millimeters(0));
 pub static INPUT: Mutex<CriticalSectionRawMutex, Inputs> = Mutex::new(Inputs::new());
@@ -112,6 +114,19 @@ pub struct Millimeters(u16);
 impl Millimeters {
     pub const fn from_mm(value: u16) -> Self {
         Self(value)
+    }
+
+    pub const fn cmp_fuzzy_eq(self, other: Self) -> core::cmp::Ordering {
+        const ALLOWED_DELTA: u16 = 2;
+        let left = self.0;
+        let right = other.0;
+        if left.abs_diff(right) < ALLOWED_DELTA {
+            Ordering::Equal
+        } else if left < right {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        }
     }
 
     //pub fn _from_adc_reading_simple(reading: u16) -> Self {
