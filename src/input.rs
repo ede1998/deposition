@@ -1,5 +1,8 @@
 use core::{cmp::Ordering, num::Wrapping};
 
+use bitflags::bitflags;
+use embassy_time::{Duration, Timer};
+
 use crate::data::INPUT;
 
 /// Describes the input button that was pressed.
@@ -47,8 +50,18 @@ impl Inputs {
     }
 
     pub async fn wait_for_press(&mut self) -> Button {
-        self.wait_for_change(|changes| changes.pressed_exclusive())
-            .await
+        let pressed = |changes: StateChanges| {
+            let button = changes.pressed();
+            (!button.is_empty()).then_some(button)
+        };
+
+        loop {
+            let button = self.wait_for_change(pressed).await;
+            Timer::after(Duration::from_millis(100)).await;
+            if self.wait_for_change(pressed).await == button {
+                break button;
+            }
+        }
     }
 
     pub async fn wait_for_release(&mut self, button: Button) {
@@ -136,43 +149,36 @@ pub struct StateChanges {
 }
 
 impl StateChanges {
-    pub fn pressed_exclusive(&self) -> Option<Button> {
-        let map = [
+    fn button_map(&self) -> impl Iterator<Item = (Button, StateChange)> {
+        [
             (Button::Up, self.up),
             (Button::Down, self.down),
             (Button::Pos1, self.pos1),
             (Button::Pos2, self.pos2),
-        ];
-
-        let mut pressed = None;
-
-        for (button, state) in map {
-            match state.state {
-                State::Pressed if pressed.is_none() => pressed = Some(button),
-                State::StillReleased => {}
-                _ => return None,
-            }
-        }
-
-        pressed
+        ]
+        .into_iter()
+    }
+    pub fn pressed(&self) -> Button {
+        self.button_map()
+            .filter_map(|(button, state)| (state.state == State::StillPressed).then_some(button))
+            .collect()
     }
 
     pub fn released(&self, button: Button) -> bool {
-        let button = match button {
-            Button::Up => self.up,
-            Button::Down => self.down,
-            Button::Pos1 => self.pos1,
-            Button::Pos2 => self.pos2,
-        };
-
-        matches!(button.state, State::Released | State::StillReleased)
+        self.button_map()
+            .filter_map(|(b, s)| button.contains(b).then_some(s.state))
+            .all(|s| matches!(s, State::Released | State::StillReleased))
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Button {
-    Up,
-    Down,
-    Pos1,
-    Pos2,
+bitflags! {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    pub struct Button: u8 {
+        const Up = 0b0001;
+        const Down = 0b0010;
+        const Pos1 = 0b0100;
+        const Pos2 = 0b1000;
+
+        const UpAndDown = Self::Up.bits() | Self::Down.bits();
+    }
 }
