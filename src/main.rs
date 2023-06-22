@@ -272,7 +272,7 @@ fn main() -> ! {
     let btn_up = io.pins.gpio18.into_pull_up_input().degrade();
     let btn_down = io.pins.gpio19.into_pull_up_input().degrade();
     let btn_pos1 = io.pins.gpio4.into_pull_up_input().degrade();
-    let btn_pos2 = io.pins.gpio2.into_pull_up_input().degrade();
+    let btn_pos2 = io.pins.gpio5.into_pull_up_input().degrade();
 
     let up = io.pins.gpio14.into_push_pull_output().degrade();
     let down = io.pins.gpio12.into_push_pull_output().degrade();

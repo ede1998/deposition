@@ -96,7 +96,7 @@ impl Inputs {
 
     pub async fn wait_for_release(&mut self, button: Button) {
         self.wait_for_change(|changes| changes.released().contains(button).then_some(()))
-            .await
+            .await;
     }
 }
 
