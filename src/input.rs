@@ -1,28 +1,27 @@
-use core::{cmp::Ordering, num::Wrapping};
-
 use bitflags::bitflags;
 use embassy_time::{Duration, Timer};
+use esp_println::println;
 
 use crate::data::INPUT;
 
 /// Describes the input button that was pressed.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Inputs {
-    pub up: StateTracker,
-    pub down: StateTracker,
+    pub up: State,
+    pub down: State,
     /// Doubles as Back or Cancel
-    pub pos1: StateTracker,
+    pub pos1: State,
     /// Doubles as Ok or Store
-    pub pos2: StateTracker,
+    pub pos2: State,
 }
 
 impl Inputs {
     pub const fn new() -> Self {
         Self {
-            up: StateTracker::new(),
-            down: StateTracker::new(),
-            pos1: StateTracker::new(),
-            pos2: StateTracker::new(),
+            up: State::Inactive,
+            down: State::Inactive,
+            pos1: State::Inactive,
+            pos2: State::Inactive,
         }
     }
     pub fn changed_since(&self, other: &Self) -> StateChanges {
@@ -49,6 +48,20 @@ impl Inputs {
         }
     }
 
+    async fn is_unchanged<F, T>(&self, expected: &T, mut check: F) -> bool
+    where
+        F: FnMut(StateChanges) -> Option<T>,
+        T: PartialEq,
+        T: core::fmt::Debug,
+    {
+        let input = INPUT.lock().await.clone();
+        let changes = input.changed_since(self);
+        let new = check(changes);
+        println!("new is {new:?}");
+
+        Some(expected) == new.as_ref()
+    }
+
     pub async fn wait_for_press(&mut self) -> Button {
         let pressed = |changes: StateChanges| {
             let button = changes.pressed();
@@ -57,9 +70,13 @@ impl Inputs {
 
         loop {
             let button = self.wait_for_change(pressed).await;
-            Timer::after(Duration::from_millis(100)).await;
-            if self.wait_for_change(pressed).await == button {
+            println!("Registered change: {button:?}");
+            Timer::after(Duration::from_millis(80)).await;
+            if self.is_unchanged(&button, pressed).await {
+                println!("It's still: {button:?}");
                 break button;
+            } else {
+                println!("It changed again.");
             }
         }
     }
@@ -71,73 +88,38 @@ impl Inputs {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct StateTracker {
-    changes: Wrapping<u8>,
+pub enum State {
+    Active,
+    #[default]
+    Inactive,
 }
 
-impl StateTracker {
-    pub const fn new() -> Self {
-        Self {
-            changes: Wrapping(0),
-        }
-    }
-
-    fn is_pressed(&self) -> bool {
-        self.changes.0 % 2 == 1
-    }
-
+impl State {
     pub fn press(&mut self) {
-        if !self.is_pressed() {
-            self.changes += 1;
-        }
+        *self = Self::Active;
     }
 
     pub fn release(&mut self) {
-        if self.is_pressed() {
-            self.changes += 1;
-        }
+        *self = Self::Inactive;
     }
 
     pub fn changed_since(&self, other: &Self) -> StateChange {
-        match self.changes.cmp(&other.changes) {
-            Ordering::Equal => StateChange {
-                state: if self.is_pressed() {
-                    State::StillPressed
-                } else {
-                    State::StillReleased
-                },
-                missed_updates: false,
-            },
-            ordering @ (Ordering::Greater | Ordering::Less) => {
-                let state = match (other.is_pressed(), self.is_pressed()) {
-                    (false, false) => State::StillReleased,
-                    (true, true) => State::StillPressed,
-                    (true, false) => State::Released,
-                    (false, true) => State::Pressed,
-                };
-
-                StateChange {
-                    state,
-                    missed_updates: ordering == Ordering::Less
-                        || other.changes + Wrapping(1) != self.changes,
-                }
-            }
+        use State::*;
+        match (other, self) {
+            (Inactive, Inactive) => StateChange::StillReleased,
+            (Active, Active) => StateChange::StillPressed,
+            (Active, Inactive) => StateChange::Released,
+            (Inactive, Active) => StateChange::Pressed,
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum State {
+pub enum StateChange {
     Pressed,
     Released,
     StillPressed,
     StillReleased,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StateChange {
-    state: State,
-    missed_updates: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -158,16 +140,19 @@ impl StateChanges {
         ]
         .into_iter()
     }
+
     pub fn pressed(&self) -> Button {
         self.button_map()
-            .filter_map(|(button, state)| (state.state == State::StillPressed).then_some(button))
+            .filter_map(|(button, state)| {
+                matches!(state, StateChange::Pressed | StateChange::StillPressed).then_some(button)
+            })
             .collect()
     }
 
     pub fn released(&self, button: Button) -> bool {
         self.button_map()
-            .filter_map(|(b, s)| button.contains(b).then_some(s.state))
-            .all(|s| matches!(s, State::Released | State::StillReleased))
+            .filter_map(|(b, s)| button.contains(b).then_some(s))
+            .all(|s| matches!(s, StateChange::Released | StateChange::StillReleased))
     }
 }
 

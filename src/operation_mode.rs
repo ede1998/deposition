@@ -32,9 +32,10 @@ async fn run_start(inputs: &mut Inputs) -> Result {
         println!("running start");
         start_gui(Direction::Stopped).await;
         match inputs.wait_for_press().await {
-            Button::UpAndDown => {
-                println!("show options menu")
-            }
+            Button::UpAndDown => loop {
+                println!("show options menu");
+                Timer::after(Duration::from_millis(1000)).await;
+            },
             Button::Up => {
                 drive_direction(inputs, Direction::Up, Button::Up).await;
             }
@@ -49,7 +50,7 @@ async fn run_start(inputs: &mut Inputs) -> Result {
                 let target_height = Millimeters::from_mm(80);
                 drive_to_position(inputs, target_height).await;
             }
-            _ => {},
+            _ => {}
         }
     }
 }

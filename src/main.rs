@@ -33,7 +33,7 @@ mod operation_mode;
 use data::{init_calibration, CALIBRATION, DIRECTION, GUI_MENU, HEIGHT};
 use history::{lin_reg, Direction, History};
 
-use crate::{data::INPUT, input::{StateTracker, Inputs}};
+use crate::{data::INPUT, input::{State, Inputs}};
 
 async fn poll<T, E>(mut f: impl FnMut() -> nb::Result<T, E>) -> Result<T, E> {
     loop {
@@ -108,7 +108,7 @@ async fn read_input(up: InputPin, down: InputPin, pos1: InputPin, pos2: InputPin
             Self { pin, debouncer }
         }
 
-        fn update_input(&mut self, input: &mut StateTracker) {
+        fn update_input(&mut self, input: &mut State) {
             let active = self.pin.is_low().unwrap_infallible();
             let Some(state) = self.debouncer.update(active) else {
                 return;
