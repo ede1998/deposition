@@ -1,0 +1,26 @@
+name: Press Up and Down simultaneously to go to options menu
+version: 1
+
+steps:
+  - wait-serial: 'Init!'
+
+  # Press once
+  - set-control:
+      part-id: btn4
+      control: pressed
+      value: 1
+  - set-control:
+      part-id: btn3
+      control: pressed
+      value: 1
+  - delay: 200ms
+  - set-control:
+      part-id: btn4
+      control: pressed
+      value: 0
+  - set-control:
+      part-id: btn3
+      control: pressed
+      value: 0
+
+  - wait-serial: 'show options menu'
