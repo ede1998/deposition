@@ -7,7 +7,7 @@ use embassy_executor::Executor;
 use embassy_time::{Duration, Timer};
 //use embassy_time::Instant;
 use esp_backtrace as _;
-use esp_println::println;
+use esp_println::logger::init_logger;
 use hal::{
     adc::{AdcConfig, AdcPin, Attenuation, ADC, ADC2},
     analog::AvailableAnalog,
@@ -27,13 +27,16 @@ mod data;
 mod gui;
 mod history;
 mod input;
-mod string_format;
 mod operation_mode;
+mod string_format;
 
 use data::{init_calibration, CALIBRATION, DIRECTION, GUI_MENU, HEIGHT};
 use history::{lin_reg, Direction, History};
 
-use crate::{data::INPUT, input::{State, Inputs}};
+use crate::{
+    data::INPUT,
+    input::{Inputs, State},
+};
 
 async fn poll<T, E>(mut f: impl FnMut() -> nb::Result<T, E>) -> Result<T, E> {
     loop {
@@ -72,7 +75,7 @@ async fn drive(mut up: OutputPin, mut down: OutputPin) {
         let Some(direction) = DIRECTION.planned().await else {
             continue;
         };
-        println!("Setting direction {direction}");
+        log::info!("starting to drive in direction {direction}");
         match direction {
             Direction::Up => {
                 down.set_low().unwrap();
@@ -228,7 +231,8 @@ static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 
 #[entry]
 fn main() -> ! {
-    esp_println::println!("Init!");
+    init_logger(log::LevelFilter::Info);
+    log::info!("init!");
     let peripherals = Peripherals::take();
     let mut system = peripherals.DPORT.split();
     let clocks = ClockControl::boot_defaults(system.clock_control).freeze();

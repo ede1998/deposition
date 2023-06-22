@@ -2,7 +2,6 @@ use core::{cmp::Ordering, convert::Infallible, future::Future};
 
 use embassy_futures::select::{select, select3};
 use embassy_time::{Duration, Timer};
-use esp_println::println;
 
 use crate::{
     data::{Millimeters, DIRECTION, GUI_MENU, HEIGHT},
@@ -29,11 +28,11 @@ pub async fn run() -> Result<Infallible> {
 
 async fn run_start(inputs: &mut Inputs) -> Result {
     loop {
-        println!("running start");
+        log::info!("running start screen");
         start_gui(Direction::Stopped).await;
         match inputs.wait_for_press().await {
             Button::UpAndDown => loop {
-                println!("show options menu");
+                log::info!("show options menu");
                 Timer::after(Duration::from_millis(1000)).await;
             },
             Button::Up => {

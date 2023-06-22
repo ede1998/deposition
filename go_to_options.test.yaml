@@ -2,7 +2,7 @@ name: Press Up and Down simultaneously to go to options menu
 version: 1
 
 steps:
-  - wait-serial: 'Init!'
+  - wait-serial: 'init!'
 
   # Press once
   - set-control:

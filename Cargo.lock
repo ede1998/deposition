@@ -199,6 +199,7 @@ dependencies = [
  "esp-println",
  "esp32-hal",
  "heapless",
+ "log",
  "ssd1306",
  "static_cell",
  "unwrap-infallible",
@@ -428,6 +429,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af6a511d37dba5fb8f01bf5485bc619a1a1959e1aaf666a7597df8fe615a0816"
 dependencies = [
  "critical-section",
+ "log",
 ]
 
 [[package]]
@@ -565,6 +567,12 @@ dependencies = [
  "autocfg",
  "scopeguard",
 ]
+
+[[package]]
+name = "log"
+version = "0.4.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b06a4cde4c0f271a446782e3eff8de789548ce57dbc8eca9292c27f4a42004b4"
 
 [[package]]
 name = "memchr"

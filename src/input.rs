@@ -1,6 +1,5 @@
 use bitflags::bitflags;
 use embassy_time::{Duration, Timer};
-use esp_println::println;
 
 use crate::data::INPUT;
 
@@ -57,7 +56,6 @@ impl Inputs {
         let input = INPUT.lock().await.clone();
         let changes = input.changed_since(self);
         let new = check(changes);
-        println!("new is {new:?}");
 
         Some(expected) == new.as_ref()
     }
@@ -70,13 +68,13 @@ impl Inputs {
 
         loop {
             let button = self.wait_for_change(pressed).await;
-            println!("Registered change: {button:?}");
+            log::trace!("registered button event: {button:?}");
             Timer::after(Duration::from_millis(80)).await;
             if self.is_unchanged(&button, pressed).await {
-                println!("It's still: {button:?}");
+                log::debug!("detected button press: {button:?}");
                 break button;
             } else {
-                println!("It changed again.");
+                log::trace!("button changed before timeout. Ignoring event.");
             }
         }
     }

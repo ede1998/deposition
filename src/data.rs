@@ -1,7 +1,6 @@
 use core::cmp::Ordering;
 
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, signal::Signal};
-use esp_println::println;
 use heapless::Vec;
 
 use crate::{gui::Menu, history::Direction, input::Inputs};
@@ -27,7 +26,7 @@ impl DirectionControl {
     }
 
     pub async fn request(&self, new_direction: Direction) {
-        println!("Req: {new_direction}");
+        log::debug!("driving in direction {new_direction} requested.");
         *self.requested.lock().await = new_direction;
     }
 
