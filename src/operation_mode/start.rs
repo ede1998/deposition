@@ -1,7 +1,6 @@
 use core::cmp::Ordering;
 
 use embassy_futures::select::{select, select3};
-use embassy_time::{Duration, Timer};
 
 use crate::{
     data::{Millimeters, DIRECTION, GUI_MENU, HEIGHT},
@@ -10,7 +9,7 @@ use crate::{
     input::{Button, Inputs},
 };
 
-use super::{refresh_gui, Result};
+use super::{refresh_gui, Result, options};
 
 pub async fn run(inputs: &mut Inputs) -> Result {
     loop {
@@ -19,8 +18,7 @@ pub async fn run(inputs: &mut Inputs) -> Result {
         inputs.wait_all_released().await;
         match inputs.wait_for_press().await {
             Button::UpAndDown => loop {
-                log::info!("show options menu");
-                Timer::after(Duration::from_millis(1000)).await;
+                options::run(inputs).await?;
             },
             Button::Up => {
                 drive_direction(inputs, Direction::Up, Button::Up).await;

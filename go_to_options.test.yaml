@@ -23,4 +23,4 @@ steps:
       control: pressed
       value: 0
 
-  - wait-serial: 'show options menu'
+  - wait-serial: 'running options screen'

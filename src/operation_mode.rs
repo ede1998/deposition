@@ -6,11 +6,13 @@ use crate::input::Inputs;
 
 pub enum OperationMode {
     Start,
+    Options,
 }
 
 type Result<T = OperationMode> = core::result::Result<T, &'static str>;
 
 mod start;
+mod options;
 
 pub async fn run() -> Result<Infallible> {
     let mut mode = OperationMode::Start;
@@ -18,6 +20,8 @@ pub async fn run() -> Result<Infallible> {
     loop {
         mode = match mode {
             OperationMode::Start => start::run(&mut inputs).await?,
+            // Do I even need this?
+            OperationMode::Options => options::run(&mut inputs).await?,
         };
     }
 }
