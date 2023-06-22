@@ -101,12 +101,12 @@ async fn drive(mut up: OutputPin, mut down: OutputPin) {
 async fn read_input(up: InputPin, down: InputPin, pos1: InputPin, pos2: InputPin) {
     struct DebouncedPin {
         pin: InputPin,
-        debouncer: DebouncerStateful<u8, debouncr::Repeat4>,
+        debouncer: DebouncerStateful<u8, debouncr::Repeat2>,
     }
 
     impl DebouncedPin {
         fn new(pin: InputPin) -> Self {
-            let debouncer = debouncr::debounce_stateful_4(false);
+            let debouncer = debouncr::debounce_stateful_2(false);
             Self { pin, debouncer }
         }
 
