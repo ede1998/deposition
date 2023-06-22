@@ -22,7 +22,13 @@ esp-backtrace = { version = "0.7.0", features = [
     "exception-handler",
     "print-uart",
 ] }
-esp-println = { version = "0.5.0", features = ["esp32", "log"] }
+esp-println = { version = "0.5.0", features = [
+    "esp32",
+    "uart",
+    "log",
+    "critical-section",
+    # no color feature so wokwi console does not contain color codes
+], default-features = false }
 ssd1306 = "0.7.1"
 embedded-graphics = "0.7.1"
 embassy-executor = { version = "0.2.0", features = [

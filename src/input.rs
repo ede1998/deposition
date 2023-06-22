@@ -47,12 +47,18 @@ impl Inputs {
         }
     }
 
-    async fn is_unchanged<F, T>(&self, expected: &T, mut check: F) -> bool
+    async fn is_unchanged_after<F, T>(
+        &self,
+        expected: &T,
+        wait_time: Duration,
+        mut check: F,
+    ) -> bool
     where
         F: FnMut(StateChanges) -> Option<T>,
         T: PartialEq,
         T: core::fmt::Debug,
     {
+        Timer::after(wait_time).await;
         let input = INPUT.lock().await.clone();
         let changes = input.changed_since(self);
         let new = check(changes);
@@ -61,16 +67,13 @@ impl Inputs {
     }
 
     pub async fn wait_for_press(&mut self) -> Button {
-        let pressed = |changes: StateChanges| {
-            let button = changes.pressed();
-            (!button.is_empty()).then_some(button)
-        };
-
         loop {
-            let button = self.wait_for_change(pressed).await;
+            let button = self.wait_for_change(StateChanges::pressed).await;
             log::trace!("registered button event: {button:?}");
-            Timer::after(Duration::from_millis(80)).await;
-            if self.is_unchanged(&button, pressed).await {
+            let unchanged = self
+                .is_unchanged_after(&button, Duration::from_millis(80), StateChanges::pressed)
+                .await;
+            if unchanged {
                 log::debug!("detected button press: {button:?}");
                 break button;
             } else {
@@ -79,8 +82,20 @@ impl Inputs {
         }
     }
 
+    pub async fn wait_for_single_press(&mut self) -> Button {
+        let button = self.wait_for_change(StateChanges::pressed).await;
+        log::debug!("detected button press: {button:?}");
+        button
+    }
+
+    pub async fn wait_all_released(&mut self) {
+        log::trace!("waiting for release of all buttons");
+        self.wait_for_release(Button::all()).await;
+        log::trace!("all buttons released");
+    }
+
     pub async fn wait_for_release(&mut self, button: Button) {
-        self.wait_for_change(|changes| changes.released(button).then_some(()))
+        self.wait_for_change(|changes| changes.released().contains(button).then_some(()))
             .await
     }
 }
@@ -129,7 +144,7 @@ pub struct StateChanges {
 }
 
 impl StateChanges {
-    fn button_map(&self) -> impl Iterator<Item = (Button, StateChange)> {
+    fn button_map(self) -> impl Iterator<Item = (Button, StateChange)> {
         [
             (Button::Up, self.up),
             (Button::Down, self.down),
@@ -139,18 +154,23 @@ impl StateChanges {
         .into_iter()
     }
 
-    pub fn pressed(&self) -> Button {
-        self.button_map()
-            .filter_map(|(button, state)| {
-                matches!(state, StateChange::Pressed | StateChange::StillPressed).then_some(button)
+    pub fn pressed(self) -> Option<Button> {
+        let button: Button = self
+            .button_map()
+            .filter_map(|(btn, state)| {
+                matches!(state, StateChange::Pressed | StateChange::StillPressed).then_some(btn)
             })
-            .collect()
+            .collect();
+
+        (!button.is_empty()).then_some(button)
     }
 
-    pub fn released(&self, button: Button) -> bool {
+    pub fn released(self) -> Button {
         self.button_map()
-            .filter_map(|(b, s)| button.contains(b).then_some(s))
-            .all(|s| matches!(s, StateChange::Released | StateChange::StillReleased))
+            .filter_map(|(btn, state)| {
+                matches!(state, StateChange::Released | StateChange::StillReleased).then_some(btn)
+            })
+            .collect()
     }
 }
 

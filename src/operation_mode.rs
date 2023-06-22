@@ -30,6 +30,7 @@ async fn run_start(inputs: &mut Inputs) -> Result {
     loop {
         log::info!("running start screen");
         start_gui(Direction::Stopped).await;
+        inputs.wait_all_released().await;
         match inputs.wait_for_press().await {
             Button::UpAndDown => loop {
                 log::info!("show options menu");
@@ -90,9 +91,11 @@ async fn drive_to_position(inputs: &mut Inputs, target_height: Millimeters) {
         }
     };
     DIRECTION.request(direction).await;
+
+    inputs.wait_all_released().await;
     select3(
         check_height(),
-        inputs.wait_for_press(),
+        inputs.wait_for_single_press(),
         refresh_gui(|| start_gui(direction)),
     )
     .await;

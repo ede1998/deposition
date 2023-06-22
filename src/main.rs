@@ -5,7 +5,6 @@
 use debouncr::DebouncerStateful;
 use embassy_executor::Executor;
 use embassy_time::{Duration, Timer};
-//use embassy_time::Instant;
 use esp_backtrace as _;
 use esp_println::logger::init_logger;
 use hal::{
@@ -231,7 +230,7 @@ static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 
 #[entry]
 fn main() -> ! {
-    init_logger(log::LevelFilter::Info);
+    init_logger(log::LevelFilter::Debug);
     log::info!("init!");
     let peripherals = Peripherals::take();
     let mut system = peripherals.DPORT.split();
