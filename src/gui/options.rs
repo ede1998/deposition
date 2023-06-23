@@ -1,19 +1,9 @@
-use core::fmt::Write;
+use embedded_graphics::{pixelcolor::BinaryColor, prelude::*};
 
-use embedded_graphics::{
-    geometry::AnchorPoint,
-    mono_font::{
-        ascii::{FONT_10X20, FONT_7X13},
-        MonoTextStyleBuilder,
-    },
-    pixelcolor::BinaryColor,
-    prelude::*,
-    text::{Alignment, Text},
-};
-use heapless::String;
+use super::widgets::{footer, Menu, MenuItem};
 
 pub struct Options {
-    selected: MenuItem,
+    pub menu: Menu<OptionItem>,
 }
 
 impl Options {
@@ -21,95 +11,48 @@ impl Options {
     where
         D: DrawTarget<Color = BinaryColor> + Dimensions,
     {
-        footer(display).await?;
-        Ok(())
-    }
-
-    async fn menu<D>(&self, display: &mut D) -> Result<(), &'static str>
-    where
-        D: DrawTarget<Color = BinaryColor> + Dimensions,
-    {
-        let text_style = MonoTextStyleBuilder::new()
-            .font(&FONT_10X20)
-            .text_color(BinaryColor::On)
-            .build();
-
-        let build_str = || {
-            let mut string = String::<50>::new();
-            for item in MenuItem::ALL {
-                if item == self.selected {
-                    string.push_str("-> ")?;
-                } else {
-                    string.push_str("   ")?;
-                }
-                writeln!(string, "{item}").map_err(|_| ())?;
-            }
-            string.pop();
-            Ok(string)
-        };
-
-        let string = build_str().map_err(|_: ()| "failed to render menu string")?;
-
-        let text = Text::with_alignment(
-            &string,
-            display.bounding_box().anchor_point(AnchorPoint::TopLeft),
-            text_style,
-            Alignment::Left,
-        );
-
-        text.draw(display).map_err(|_| "failed to draw text")?;
+        self.menu
+            .display::<{ OptionItem::MENU_STRING_LENGTH }>(display)
+            .await?;
+        let string = "+- nav | pos1 exit | pos2 sel";
+        footer(display, string).await?;
         Ok(())
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MenuItem {
+pub enum OptionItem {
     SavePos1,
     SavePos2,
     Calibration,
     ResetDrive,
 }
 
-impl MenuItem {
-    const ALL: [Self; 4] = [
-        Self::SavePos1,
-        Self::SavePos2,
-        Self::Calibration,
-        Self::ResetDrive,
-    ];
+impl MenuItem for OptionItem {
+    const MENU_STRING_LENGTH: usize = 83;
+
+    type Iter = core::array::IntoIter<OptionItem, 4>;
+
+    fn iter() -> Self::Iter {
+        [
+            OptionItem::SavePos1,
+            OptionItem::SavePos2,
+            OptionItem::Calibration,
+            OptionItem::ResetDrive,
+        ]
+        .into_iter()
+    }
 }
 
-impl core::fmt::Display for MenuItem {
+impl core::fmt::Display for OptionItem {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         let string = match self {
-            MenuItem::SavePos1 => "Store position 1",
-            MenuItem::SavePos2 => "Store position 2",
-            MenuItem::Calibration => "Height calibration",
-            MenuItem::ResetDrive => "Start reset drive",
+            OptionItem::SavePos1 => "Store position 1",
+            OptionItem::SavePos2 => "Store position 2",
+            OptionItem::Calibration => "Height calibration",
+            OptionItem::ResetDrive => "Start reset drive",
         };
 
         f.write_str(string)
     }
-}
-
-async fn footer<D>(display: &mut D) -> Result<(), &'static str>
-where
-    D: DrawTarget<Color = BinaryColor> + Dimensions,
-{
-    let text_style = MonoTextStyleBuilder::new()
-        .font(&FONT_7X13)
-        .text_color(BinaryColor::On)
-        .build();
-
-    let string = "up/down nav | pos1 exit | pos2 select";
-
-    let text = Text::with_alignment(
-        string,
-        display.bounding_box().anchor_point(AnchorPoint::BottomLeft),
-        text_style,
-        Alignment::Center,
-    );
-
-    text.draw(display).map_err(|_| "failed to draw text")?;
-    Ok(())
 }

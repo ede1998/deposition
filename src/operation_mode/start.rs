@@ -4,7 +4,7 @@ use embassy_futures::select::{select, select3};
 
 use crate::{
     data::{Millimeters, DIRECTION, GUI_MENU, HEIGHT},
-    gui::{Menu, Start},
+    gui::{MainMenu, Start},
     history::Direction,
     input::{Button, Inputs},
 };
@@ -85,9 +85,10 @@ async fn drive_to_position(inputs: &mut Inputs, target_height: Millimeters) {
     .await;
     DIRECTION.request(Direction::Stopped).await;
 }
+
 async fn start_gui(direction: Direction) {
     let height = *HEIGHT.lock().await;
-    GUI_MENU.signal(Menu::Start(Start {
+    GUI_MENU.signal(MainMenu::Start(Start {
         height: Some(height),
         direction,
     }));

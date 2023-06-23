@@ -3,12 +3,12 @@ use core::cmp::Ordering;
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, signal::Signal};
 use heapless::Vec;
 
-use crate::{gui::Menu, history::Direction, input::Inputs};
+use crate::{gui::MainMenu, history::Direction, input::Inputs};
 
 pub static HEIGHT: Mutex<CriticalSectionRawMutex, Millimeters> = Mutex::new(Millimeters(0));
 pub static INPUT: Mutex<CriticalSectionRawMutex, Inputs> = Mutex::new(Inputs::new());
 
-pub static GUI_MENU: Signal<CriticalSectionRawMutex, Menu> = Signal::new();
+pub static GUI_MENU: Signal<CriticalSectionRawMutex, MainMenu> = Signal::new();
 
 pub static DIRECTION: DirectionControl = DirectionControl::new();
 
