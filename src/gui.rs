@@ -4,13 +4,14 @@ mod options;
 mod start;
 mod widgets;
 
-pub use options::{OptionItem, Options};
+pub use options::{OptionItem, Options, ResetDrive};
 pub use start::Start;
 pub use widgets::{Menu, MenuItem};
 
 pub enum MainMenu {
     Start(Start),
     Options(Options),
+    ResetDrive(ResetDrive),
 }
 
 impl MainMenu {
@@ -21,6 +22,7 @@ impl MainMenu {
         match self {
             MainMenu::Start(start) => start.display(display).await,
             MainMenu::Options(options) => options.display(display).await,
+            MainMenu::ResetDrive(reset_drive) => reset_drive.display(display).await,
         }
     }
 }

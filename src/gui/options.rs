@@ -1,4 +1,10 @@
-use embedded_graphics::{pixelcolor::BinaryColor, prelude::*};
+use embedded_graphics::{
+    geometry::AnchorPoint,
+    mono_font::{ascii::FONT_6X10, MonoTextStyleBuilder},
+    pixelcolor::BinaryColor,
+    prelude::*,
+    text::{Alignment, Text},
+};
 
 use super::{
     widgets::{footer, Menu, MenuItem},
@@ -81,5 +87,34 @@ impl core::fmt::Display for OptionItem {
         };
 
         f.write_str(string)
+    }
+}
+
+pub struct ResetDrive;
+
+impl From<ResetDrive> for MainMenu {
+    fn from(value: ResetDrive) -> Self {
+        Self::ResetDrive(value)
+    }
+}
+
+impl ResetDrive {
+    pub async fn display<D>(&self, display: &mut D) -> Result<(), &'static str>
+    where
+        D: DrawTarget<Color = BinaryColor> + Dimensions,
+    {
+        let text_style = MonoTextStyleBuilder::new()
+            .font(&FONT_6X10)
+            .text_color(BinaryColor::On)
+            .build();
+        let text = Text::with_alignment(
+            "Reset drive active.\nPress any button\nto stop/finish.",
+            display.bounding_box().anchor_point(AnchorPoint::TopLeft) + Point::new(0, 6),
+            text_style,
+            Alignment::Left,
+        );
+
+        text.draw(display).map_err(|_| "failed to draw text")?;
+        Ok(())
     }
 }
