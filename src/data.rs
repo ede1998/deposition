@@ -2,6 +2,7 @@ use core::cmp::Ordering;
 
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, signal::Signal};
 use heapless::Vec;
+use serde::{Serialize, Deserialize};
 
 use crate::{gui::MainMenu, history::Direction, input::Inputs};
 
@@ -67,11 +68,17 @@ pub fn init_calibration() {
 
 type Mapping = (u16, Millimeters);
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Calibration {
     fix_points: Vec<Mapping, 20>,
 }
 
 impl Calibration {
+    pub const fn new() -> Self {
+        Self {
+            fix_points: Vec::new(),
+        }
+    }
     pub fn transform(&self, reading: u16) -> Millimeters {
         match self.fix_points.binary_search_by_key(&reading, |x| x.0) {
             Ok(i) => self.fix_points[i].1,
@@ -107,7 +114,7 @@ impl Calibration {
     }
 }
 
-#[derive(Debug, Clone, Copy, Ord, PartialEq, PartialOrd, Eq)]
+#[derive(Debug, Clone, Copy, Ord, PartialEq, PartialOrd, Eq, Serialize, Deserialize)]
 pub struct Millimeters(u16);
 
 impl Millimeters {

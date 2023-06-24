@@ -46,3 +46,7 @@ debouncr = "0.2.2"
 unwrap-infallible = "0.1.5"
 bitflags = "2.3.2"
 log = "0.4.19"
+esp-storage = { version = "0.1.0", features = ["esp32"] }
+embedded-storage = "0.3.0"
+postcard = "1.0.4"
+serde = { version = "1.0.163", default-features = false, features = ["derive"] }

@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
+#![feature(result_option_inspect)]
 
 use debouncr::DebouncerStateful;
 use embassy_executor::Executor;
@@ -28,6 +29,7 @@ mod history;
 mod input;
 mod operation_mode;
 mod string_format;
+mod storage;
 
 use data::{init_calibration, CALIBRATION, DIRECTION, GUI_MENU, HEIGHT};
 use history::{lin_reg, Direction, History};
