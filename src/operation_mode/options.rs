@@ -5,7 +5,7 @@ use crate::{
     input::{Button, Inputs},
 };
 
-use super::Result;
+use super::{calibration, Result};
 
 pub async fn run(inputs: &mut Inputs) -> Result {
     let mut selected = OptionItem::SavePos1;
@@ -27,13 +27,11 @@ pub async fn run(inputs: &mut Inputs) -> Result {
             Button::Pos2 => match selected {
                 OptionItem::SavePos1 => todo!(),
                 OptionItem::SavePos2 => todo!(),
-                OptionItem::Calibration => todo!(),
+                OptionItem::Calibration => calibration::run(inputs).await?,
                 OptionItem::ResetDrive => reset_drive(inputs).await,
             },
             _ => {}
         }
-
-        embassy_futures::yield_now().await;
     }
 }
 

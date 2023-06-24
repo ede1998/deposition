@@ -6,6 +6,7 @@ use crate::input::Inputs;
 
 type Result<T = ()> = core::result::Result<T, &'static str>;
 
+mod calibration;
 mod options;
 mod start;
 
