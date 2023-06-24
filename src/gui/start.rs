@@ -9,9 +9,17 @@ use embedded_graphics::{
 
 use crate::{data::Millimeters, format, history::Direction};
 
+use super::MainMenu;
+
 pub struct Start {
     pub height: Option<Millimeters>,
     pub direction: Direction,
+}
+
+impl From<Start> for MainMenu {
+    fn from(value: Start) -> Self {
+        Self::Start(value)
+    }
 }
 
 impl Start {

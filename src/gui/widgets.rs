@@ -54,6 +54,9 @@ pub trait MenuItem: Display + Copy + Eq {
 
     type Iter: Iterator<Item = Self>;
     fn iter() -> Self::Iter;
+
+    fn next(self) -> Self;
+    fn prev(self) -> Self;
 }
 
 impl<T: MenuItem> Menu<T> {

@@ -1,6 +1,9 @@
 use embedded_graphics::{pixelcolor::BinaryColor, prelude::*};
 
-use super::widgets::{footer, Menu, MenuItem};
+use super::{
+    widgets::{footer, Menu, MenuItem},
+    MainMenu,
+};
 
 pub struct Options {
     pub menu: Menu<OptionItem>,
@@ -17,6 +20,12 @@ impl Options {
         let string = "+- nav | pos1 exit | pos2 sel";
         footer(display, string).await?;
         Ok(())
+    }
+}
+
+impl From<Options> for MainMenu {
+    fn from(value: Options) -> Self {
+        Self::Options(value)
     }
 }
 
@@ -41,6 +50,24 @@ impl MenuItem for OptionItem {
             OptionItem::ResetDrive,
         ]
         .into_iter()
+    }
+
+    fn next(self) -> Self {
+        match self {
+            OptionItem::SavePos1 => OptionItem::SavePos2,
+            OptionItem::SavePos2 => OptionItem::Calibration,
+            OptionItem::Calibration => OptionItem::ResetDrive,
+            OptionItem::ResetDrive => OptionItem::SavePos1,
+        }
+    }
+
+    fn prev(self) -> Self {
+        match self {
+            OptionItem::SavePos1 => OptionItem::ResetDrive,
+            OptionItem::SavePos2 => OptionItem::SavePos1,
+            OptionItem::Calibration => OptionItem::SavePos2,
+            OptionItem::ResetDrive => OptionItem::Calibration,
+        }
     }
 }
 

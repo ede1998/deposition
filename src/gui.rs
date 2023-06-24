@@ -4,9 +4,9 @@ mod options;
 mod start;
 mod widgets;
 
-pub use options::{Options, OptionItem};
+pub use options::{OptionItem, Options};
 pub use start::Start;
-pub use widgets::Menu;
+pub use widgets::{Menu, MenuItem};
 
 pub enum MainMenu {
     Start(Start),
