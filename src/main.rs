@@ -2,7 +2,6 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 #![feature(result_option_inspect)]
-#![allow(dead_code)]
 
 use debouncr::DebouncerStateful;
 use embassy_executor::Executor;

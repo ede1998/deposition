@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::data::{Calibration, Millimeters};
 
-pub static CONFIGURATION: Mutex<CriticalSectionRawMutex, StorageData> = Mutex::new(StorageData::const_default());
+pub static CONFIGURATION: Mutex<CriticalSectionRawMutex, StorageData> =
+    Mutex::new(StorageData::const_default());
 
 const MAGIC_BYTES: [u8; 4] = [123, 52, 61, 53];
 const FLASH_ADDR: u32 = 0x9000;
@@ -62,21 +63,31 @@ impl StorageData {
             .inspect_err(|e| log::error!("failed to read flash storage: {e:?}"))
             .ok()?;
 
-        postcard::from_bytes(&bytes)
+        let this: Self = postcard::from_bytes(&bytes)
             .inspect_err(|e| {
                 log::error!(
                     "failed to load configuration: {e}\nThis is normal during first-time use."
                 )
             })
-            .ok()
+            .ok()?;
+
+        if this.magic_identifier != MAGIC_BYTES {
+            log::error!("invalid magic identifier {:?}, ignoring configuration.\nThis is normal during first-time use.", this.magic_identifier);
+            return None;
+        }
+
+        Some(this)
     }
 
     fn store(&self) {
+        log::debug!("serializing data for flash storage: {:?}", self);
+
         const DATA_SIZE: usize = core::mem::size_of::<StorageData>();
         let Ok(bytes) = postcard::to_vec::<_, DATA_SIZE>(self)
             .inspect_err(|e| log::error!("failed to serialize configuration: {e}"))
             else {return;};
 
+        log::info!("saving {} bytes to flash storage", bytes.len());
         let _ = FlashStorage::new()
             .write(FLASH_ADDR, &bytes)
             .inspect_err(|e| log::error!("failed to write flash storage: {e:?}"));
@@ -88,5 +99,6 @@ impl StorageData {
     {
         self.init_inner();
         f(&mut self.inner);
+        self.store();
     }
 }

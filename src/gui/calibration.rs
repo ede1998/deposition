@@ -98,12 +98,12 @@ impl MenuContent for CalibrationMenu {
 
     fn iter(&self) -> Self::Iter {
         let inner = || {
-            let (adc, height) = self.items[usize::from(self.shown_index)];
             let mut items = heapless::Vec::new();
             items.push(CalibrationItem::AddNew)?;
 
             if !self.items.is_empty() {
                 items.push(CalibrationItem::RemoveAll)?;
+                let (adc, height) = self.items[usize::from(self.shown_index)];
                 items.push(CalibrationItem::ShowOne {
                     index: self.shown_index,
                     adc,

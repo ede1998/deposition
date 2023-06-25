@@ -31,10 +31,6 @@ impl DirectionControl {
         *self.requested.lock().await = new_direction;
     }
 
-    pub async fn get(&self) -> Direction {
-        *self.current.lock().await
-    }
-
     pub async fn planned(&self) -> Option<Direction> {
         let (cur, req) = {
             let cur_guard = self.current.lock().await;
