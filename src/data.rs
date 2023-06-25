@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::{gui::MainMenu, history::Direction, input::Inputs};
 
 pub static HEIGHT: Mutex<CriticalSectionRawMutex, Millimeters> = Mutex::new(Millimeters(0));
+pub static RAW_HEIGHT: Signal<CriticalSectionRawMutex, u16> = Signal::new();
 pub static INPUT: Mutex<CriticalSectionRawMutex, Inputs> = Mutex::new(Inputs::new());
 
 pub static GUI_MENU: Signal<CriticalSectionRawMutex, MainMenu> = Signal::new();
@@ -160,6 +161,14 @@ impl Millimeters {
         } else {
             Ordering::Greater
         }
+    }
+
+    pub fn increase(self) -> Self {
+        Self(self.0.saturating_add(1))
+    }
+
+    pub fn decrease(self) -> Self {
+        Self(self.0.saturating_sub(1))
     }
 
     //pub fn _from_adc_reading_simple(reading: u16) -> Self {

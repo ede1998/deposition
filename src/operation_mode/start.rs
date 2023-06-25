@@ -7,6 +7,7 @@ use crate::{
     gui::Start,
     history::Direction,
     input::{Button, Inputs},
+    storage::CONFIGURATION,
 };
 
 use super::{options, refresh_gui, Result};
@@ -27,11 +28,17 @@ pub async fn run(inputs: &mut Inputs) -> Result {
                 drive_direction(inputs, Direction::Down, Button::Down).await;
             }
             Button::Pos1 => {
-                let target_height = Millimeters::from_mm(0);
+                let Some(target_height) = CONFIGURATION.lock().await.get().position_1 else {
+                    log::debug!("position 1 not saved.");
+                    continue;
+                };
                 drive_to_position(inputs, target_height).await;
             }
             Button::Pos2 => {
-                let target_height = Millimeters::from_mm(80);
+                let Some(target_height) = CONFIGURATION.lock().await.get().position_2 else {
+                    log::debug!("position 2 not saved.");
+                    continue;
+                };
                 drive_to_position(inputs, target_height).await;
             }
             _ => {}

@@ -93,12 +93,13 @@ impl StorageData {
             .inspect_err(|e| log::error!("failed to write flash storage: {e:?}"));
     }
 
-    pub fn update<F>(&mut self, f: F)
+    pub fn update<F>(&mut self, f: F) -> &InnerData
     where
         F: FnOnce(&mut InnerData),
     {
         self.init_inner();
         f(&mut self.inner);
         self.store();
+        &self.inner
     }
 }

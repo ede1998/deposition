@@ -28,10 +28,10 @@ mod gui;
 mod history;
 mod input;
 mod operation_mode;
-mod string_format;
 mod storage;
+mod string_format;
 
-use data::{init_calibration, CALIBRATION, DIRECTION, GUI_MENU, HEIGHT};
+use data::{init_calibration, CALIBRATION, DIRECTION, GUI_MENU, HEIGHT, RAW_HEIGHT};
 use history::{lin_reg, Direction, History};
 
 use crate::{
@@ -176,6 +176,7 @@ async fn measure(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) -> Result<(),
         let _dir = Direction::estimate_from_slope(slope);
 
         *HEIGHT.lock().await = value;
+        RAW_HEIGHT.signal(pin25_value);
 
         //println!(
         //    "{value:?} = PIN25 ADC reading = {pin25_value}, waited {}",
