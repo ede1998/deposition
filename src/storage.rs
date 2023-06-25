@@ -5,16 +5,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::data::{Calibration, Millimeters};
 
-static CONFIGURATION: Mutex<CriticalSectionRawMutex, Data> = Mutex::new(Data::const_default());
+pub static CONFIGURATION: Mutex<CriticalSectionRawMutex, StorageData> = Mutex::new(StorageData::const_default());
 
 const MAGIC_BYTES: [u8; 4] = [123, 52, 61, 53];
 const FLASH_ADDR: u32 = 0x9000;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-struct InnerData {
-    position_1: Option<Millimeters>,
-    position_2: Option<Millimeters>,
-    calibration: Calibration,
+pub struct InnerData {
+    pub position_1: Option<Millimeters>,
+    pub position_2: Option<Millimeters>,
+    pub calibration: Calibration,
 }
 
 impl InnerData {
@@ -28,12 +28,12 @@ impl InnerData {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-struct Data {
+pub struct StorageData {
     magic_identifier: [u8; 4],
     inner: InnerData,
 }
 
-impl Data {
+impl StorageData {
     pub const fn const_default() -> Self {
         Self {
             magic_identifier: [0; 4],
@@ -56,7 +56,7 @@ impl Data {
     }
 
     fn load() -> Option<Self> {
-        let mut bytes = [0u8; core::mem::size_of::<Data>()];
+        let mut bytes = [0u8; core::mem::size_of::<StorageData>()];
         FlashStorage::new()
             .read(FLASH_ADDR, &mut bytes)
             .inspect_err(|e| log::error!("failed to read flash storage: {e:?}"))
@@ -72,7 +72,7 @@ impl Data {
     }
 
     fn store(&self) {
-        const DATA_SIZE: usize = core::mem::size_of::<Data>();
+        const DATA_SIZE: usize = core::mem::size_of::<StorageData>();
         let Ok(bytes) = postcard::to_vec::<_, DATA_SIZE>(self)
             .inspect_err(|e| log::error!("failed to serialize configuration: {e}"))
             else {return;};

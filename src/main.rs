@@ -2,6 +2,7 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 #![feature(result_option_inspect)]
+#![allow(dead_code)]
 
 use debouncr::DebouncerStateful;
 use embassy_executor::Executor;
@@ -172,8 +173,8 @@ async fn measure(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) -> Result<(),
         let value = calibration.transform(pin25_value);
 
         history.add(pin25_value);
-        let (slope, intercept) = lin_reg(&history);
-        let dir = Direction::estimate_from_slope(slope);
+        let (slope, _intercept) = lin_reg(&history);
+        let _dir = Direction::estimate_from_slope(slope);
 
         *HEIGHT.lock().await = value;
 
@@ -181,7 +182,7 @@ async fn measure(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) -> Result<(),
         //    "{value:?} = PIN25 ADC reading = {pin25_value}, waited {}",
         //    0 // duration.as_millis()
         //);
-        //println!("slope = {slope}, intercept = {intercept}, dir = {dir}");
+        //println!("slope = {slope}, intercept = {_intercept}, dir = {_dir}");
     }
 }
 

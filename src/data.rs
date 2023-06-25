@@ -2,7 +2,7 @@ use core::cmp::Ordering;
 
 use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, signal::Signal};
 use heapless::Vec;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::{gui::MainMenu, history::Direction, input::Inputs};
 
@@ -73,11 +73,42 @@ pub struct Calibration {
     fix_points: Vec<Mapping, 20>,
 }
 
+impl core::ops::Deref for Calibration {
+    type Target = Vec<Mapping, 20>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.fix_points
+    }
+}
+
 impl Calibration {
     pub const fn new() -> Self {
         Self {
             fix_points: Vec::new(),
         }
+    }
+
+    pub fn insert(&mut self, adc: u16, height: Millimeters) -> Result<(), &'static str> {
+        let position = self.fix_points.binary_search_by_key(&adc, |(adc, _)| *adc);
+        match position {
+            Ok(index) => {
+                self.fix_points[index] = (adc, height);
+            }
+            Err(index) => {
+                self.fix_points
+                    .insert(index, (adc, height))
+                    .map_err(|_| "too many calibration points")?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn clear(&mut self) {
+        self.fix_points.clear();
+    }
+
+    pub fn remove(&mut self, index: usize) {
+        self.fix_points.remove(index);
     }
     pub fn transform(&self, reading: u16) -> Millimeters {
         match self.fix_points.binary_search_by_key(&reading, |x| x.0) {
@@ -146,5 +177,9 @@ impl Millimeters {
 
     pub fn as_cm(self) -> u16 {
         self.0 / 10
+    }
+
+    pub fn as_mm(self) -> u16 {
+        self.0
     }
 }

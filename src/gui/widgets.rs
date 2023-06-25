@@ -46,22 +46,22 @@ where
 
 #[derive(Debug, Clone, Copy)]
 pub struct Menu<T> {
-    selected: T,
+    pub content: T,
 }
 
-pub trait MenuItem: Display + Copy + Eq {
+pub trait MenuContent {
+    fn iter(&self) -> Self::Iter;
+    type IterItem: Display + Copy;
+    type Iter: Iterator<Item = Self::IterItem>;
     const MENU_STRING_LENGTH: usize;
-
-    type Iter: Iterator<Item = Self>;
-    fn iter() -> Self::Iter;
-
-    fn next(self) -> Self;
-    fn prev(self) -> Self;
+    fn next(&mut self);
+    fn prev(&mut self);
+    fn is_selected(&self, item: &Self::IterItem) -> bool;
 }
 
-impl<T: MenuItem> Menu<T> {
-    pub fn new(selected: T) -> Self {
-        Self { selected }
+impl<T: MenuContent> Menu<T> {
+    pub fn new(content: T) -> Self {
+        Self { content }
     }
 
     pub async fn display<const MENU_STRING_LENGTH: usize>(
@@ -75,8 +75,8 @@ impl<T: MenuItem> Menu<T> {
 
         let build_str = || {
             let mut string = String::<MENU_STRING_LENGTH>::new();
-            for item in T::iter() {
-                if item == self.selected {
+            for item in self.content.iter() {
+                if self.content.is_selected(&item) {
                     string.push_str("-> ")?;
                 } else {
                     string.push_str("   ")?;

@@ -7,7 +7,7 @@ use embedded_graphics::{
 };
 
 use super::{
-    widgets::{footer, Menu, MenuItem},
+    widgets::{footer, Menu, MenuContent},
     MainMenu,
 };
 
@@ -43,12 +43,13 @@ pub enum OptionItem {
     ResetDrive,
 }
 
-impl MenuItem for OptionItem {
+impl MenuContent for OptionItem {
     const MENU_STRING_LENGTH: usize = 83;
 
     type Iter = core::array::IntoIter<OptionItem, 4>;
+    type IterItem = OptionItem;
 
-    fn iter() -> Self::Iter {
+    fn iter(&self) -> Self::Iter {
         [
             OptionItem::SavePos1,
             OptionItem::SavePos2,
@@ -58,8 +59,8 @@ impl MenuItem for OptionItem {
         .into_iter()
     }
 
-    fn next(self) -> Self {
-        match self {
+    fn next(&mut self) {
+        *self = match self {
             OptionItem::SavePos1 => OptionItem::SavePos2,
             OptionItem::SavePos2 => OptionItem::Calibration,
             OptionItem::Calibration => OptionItem::ResetDrive,
@@ -67,13 +68,17 @@ impl MenuItem for OptionItem {
         }
     }
 
-    fn prev(self) -> Self {
-        match self {
+    fn prev(&mut self) {
+        *self = match self {
             OptionItem::SavePos1 => OptionItem::ResetDrive,
             OptionItem::SavePos2 => OptionItem::SavePos1,
             OptionItem::Calibration => OptionItem::SavePos2,
             OptionItem::ResetDrive => OptionItem::Calibration,
         }
+    }
+
+    fn is_selected(&self, content: &Self) -> bool {
+        self == content
     }
 }
 

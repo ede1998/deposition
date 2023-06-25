@@ -5,6 +5,9 @@ authors = ["ede1998 <online@erik-hennig.me>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
+[profile.dev]
+opt-level = 3
+
 [package.metadata.docs.rs]
 rustdoc-args = [
     "--html-in-header",

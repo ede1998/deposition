@@ -1,6 +1,6 @@
 use crate::{
     data::{DIRECTION, GUI_MENU},
-    gui::{Menu, MenuItem, OptionItem, Options, ResetDrive},
+    gui::{Menu, MenuContent, OptionItem, Options, ResetDrive},
     history::Direction,
     input::{Button, Inputs},
 };
@@ -21,8 +21,8 @@ pub async fn run(inputs: &mut Inputs) -> Result {
 
         inputs.wait_all_released().await;
         match inputs.wait_for_single_press().await {
-            Button::Up => selected = selected.prev(),
-            Button::Down => selected = selected.next(),
+            Button::Up => selected.prev(),
+            Button::Down => selected.next(),
             Button::Pos1 => return Ok(()),
             Button::Pos2 => match selected {
                 OptionItem::SavePos1 => todo!(),
