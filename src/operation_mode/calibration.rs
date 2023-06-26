@@ -1,5 +1,5 @@
 use crate::{
-    data::{Millimeters, CALIBRATION, GUI_MENU, RAW_HEIGHT},
+    data::{Calibration, Millimeters, CALIBRATION, GUI_MENU, RAW_HEIGHT},
     gui::{CalibrationMenu, CalibrationOptions, CalibrationPoint, Menu, MenuContent, Selected},
     input::{Button, Inputs},
     storage::CONFIGURATION,
@@ -8,11 +8,12 @@ use crate::{
 use super::Result;
 
 pub async fn run(inputs: &mut Inputs) -> Result {
+    let mut menu = CalibrationMenu::new(Calibration::new());
     loop {
         log::info!("running calibration screen");
         let calibration = CONFIGURATION.lock().await.get().calibration.clone();
         let no_more_points = calibration.is_full();
-        let mut menu = CalibrationMenu::new(calibration);
+        menu.update_calibration(&calibration);
 
         GUI_MENU.signal(
             CalibrationOptions {

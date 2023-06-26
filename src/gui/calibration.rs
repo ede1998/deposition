@@ -50,6 +50,24 @@ impl CalibrationMenu {
         }
     }
 
+    pub fn update_calibration(&mut self, items: &Calibration) {
+        self.items = items.clone();
+
+        let max_index = self
+            .items
+            .len()
+            .try_into()
+            .unwrap_or(u8::MAX)
+            .saturating_sub(1);
+        if self.shown_index > max_index {
+            self.shown_index = max_index;
+        }
+
+        if self.items.is_empty() {
+            self.selected = Selected::AddNew;
+        }
+    }
+
     pub fn selected(&self) -> Selected {
         self.selected
     }
@@ -91,7 +109,7 @@ impl core::fmt::Display for CalibrationItem {
 }
 
 impl MenuContent for CalibrationMenu {
-    const MENU_STRING_LENGTH: usize = 80;
+    const MENU_STRING_LENGTH: usize = 120;
 
     type Iter = <heapless::Vec<CalibrationItem, 3> as core::iter::IntoIterator>::IntoIter;
     type IterItem = CalibrationItem;
