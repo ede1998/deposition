@@ -4,7 +4,7 @@ use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, s
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
-use crate::{gui::MainMenu, history::Direction, input::Inputs};
+use crate::{gui::MainMenu, input::Inputs};
 
 pub static HEIGHT: Mutex<CriticalSectionRawMutex, Millimeters> = Mutex::new(Millimeters(0));
 pub static RAW_HEIGHT: Signal<CriticalSectionRawMutex, u16> = Signal::new();
@@ -48,20 +48,6 @@ impl DirectionControl {
 }
 
 pub static CALIBRATION: Signal<CriticalSectionRawMutex, Calibration> = Signal::new();
-
-pub fn init_calibration() {
-    let values = [
-        (952, Millimeters::from_mm(86)),
-        (1432, Millimeters::from_mm(172)),
-        (1893, Millimeters::from_mm(258)),
-        (2204, Millimeters::from_mm(316)),
-        (2572, Millimeters::from_mm(386)),
-    ]
-    .into_iter()
-    .collect();
-
-    CALIBRATION.signal(Calibration { fix_points: values });
-}
 
 type Mapping = (u16, Millimeters);
 
@@ -108,6 +94,10 @@ impl Calibration {
         self.fix_points.remove(index);
     }
     pub fn transform(&self, reading: u16) -> Millimeters {
+        if self.fix_points.is_empty() {
+            return Millimeters::from_mm(0);
+        }
+
         match self.fix_points.binary_search_by_key(&reading, |x| x.0) {
             Ok(i) => self.fix_points[i].1,
             Err(i) => {
@@ -171,20 +161,30 @@ impl Millimeters {
         Self(self.0.saturating_sub(1))
     }
 
-    //pub fn _from_adc_reading_simple(reading: u16) -> Self {
-    //    const FACTOR: u64 = 256;
-    //    const SLOPE: u64 = (0.185185185185185 * FACTOR as f64) as _;
-    //    const OFFSET: u64 = (90.2962962962963 * FACTOR as f64) as _;
-    //    let reading: u64 = reading.into();
-    //    let length = (SLOPE * reading - OFFSET) / FACTOR;
-    //    Self(length.try_into().unwrap_or(u16::MAX))
-    //}
-
     pub fn as_cm(self) -> u16 {
         self.0 / 10
     }
 
     pub fn as_mm(self) -> u16 {
         self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Direction {
+    Up,
+    Stopped,
+    Down,
+    ResetDrive,
+}
+
+impl core::fmt::Display for Direction {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        f.write_str(match self {
+            Direction::Up => "+",
+            Direction::Stopped => "0",
+            Direction::Down => "-",
+            Direction::ResetDrive => "R",
+        })
     }
 }

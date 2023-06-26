@@ -25,18 +25,15 @@ use unwrap_infallible::UnwrapInfallible;
 
 mod data;
 mod gui;
-mod history;
 mod input;
 mod operation_mode;
 mod storage;
 mod string_format;
 
-use data::{init_calibration, CALIBRATION, DIRECTION, GUI_MENU, HEIGHT, RAW_HEIGHT};
-use history::{lin_reg, Direction, History};
-
 use crate::{
-    data::INPUT,
+    data::{Direction, CALIBRATION, DIRECTION, GUI_MENU, HEIGHT, INPUT, RAW_HEIGHT},
     input::{Inputs, State},
+    storage::CONFIGURATION,
 };
 
 async fn poll<T, E>(mut f: impl FnMut() -> nb::Result<T, E>) -> Result<T, E> {
@@ -62,7 +59,6 @@ fn compute_median(samples: &mut [u16]) -> u16 {
 }
 
 const SAMPLE_COUNT: usize = if cfg!(debug_assertions) { 32 } else { 64 };
-const HISTORY_COUNT: usize = 32;
 
 type InputPin = hal::gpio::AnyPin<hal::gpio::Input<hal::gpio::PullUp>>;
 type OutputPin = hal::gpio::AnyPin<hal::gpio::Output<hal::gpio::PushPull>>;
@@ -154,35 +150,19 @@ async fn measure(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) -> Result<(),
     let mut adc2 =
         ADC::<ADC2>::adc(analog.adc2, adc2_config).map_err(|_| "ADC initialization failed")?;
 
-    init_calibration();
-
-    let mut history = History::<_, HISTORY_COUNT>::new();
-
-    let mut calibration = CALIBRATION.wait().await;
+    let mut calibration = CONFIGURATION.lock().await.get().calibration.clone();
 
     loop {
         if CALIBRATION.signaled() {
             calibration = CALIBRATION.wait().await;
         }
 
-        // let start = Instant::now();
         let pin25_value = read_sample(&mut adc2, &mut pin25).await?;
-        // let duration = start.elapsed();
 
         let value = calibration.transform(pin25_value);
 
-        history.add(pin25_value);
-        let (slope, _intercept) = lin_reg(&history);
-        let _dir = Direction::estimate_from_slope(slope);
-
         *HEIGHT.lock().await = value;
         RAW_HEIGHT.signal(pin25_value);
-
-        //println!(
-        //    "{value:?} = PIN25 ADC reading = {pin25_value}, waited {}",
-        //    0 // duration.as_millis()
-        //);
-        //println!("slope = {slope}, intercept = {_intercept}, dir = {_dir}");
     }
 }
 

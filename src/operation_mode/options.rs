@@ -1,7 +1,6 @@
 use crate::{
-    data::{Millimeters, DIRECTION, GUI_MENU, HEIGHT},
+    data::{Direction, Millimeters, DIRECTION, GUI_MENU, HEIGHT},
     gui::{Menu, MenuContent, OptionItem, Options, ResetDrive},
-    history::Direction,
     input::{Button, Inputs},
     storage::{InnerData, CONFIGURATION},
 };

@@ -7,7 +7,7 @@ use embedded_graphics::{
     text::{Alignment, Text},
 };
 
-use crate::{data::Millimeters, format, history::Direction};
+use crate::{data::Direction, data::Millimeters, format};
 
 use super::MainMenu;
 
