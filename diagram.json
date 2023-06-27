@@ -38,28 +38,28 @@
       "id": "btn1",
       "top": -162.91,
       "left": 213.64,
-      "attrs": { "color": "blue", "label": "POS2" }
+      "attrs": { "color": "blue", "label": "POS2", "key": "."  }
     },
     {
       "type": "wokwi-pushbutton",
       "id": "btn2",
       "top": -224.57,
       "left": 213.23,
-      "attrs": { "color": "blue", "label": "POS1" }
+      "attrs": { "color": "blue", "label": "POS1", "key": ","  }
     },
     {
       "type": "wokwi-pushbutton",
       "id": "btn3",
       "top": -161.31,
       "left": -43.41,
-      "attrs": { "color": "red", "label": "DOWN" }
+      "attrs": { "color": "red", "label": "DOWN", "key": "s" }
     },
     {
       "type": "wokwi-pushbutton",
       "id": "btn4",
       "top": -221.61,
       "left": -42.87,
-      "attrs": { "color": "green", "label": "UP" }
+      "attrs": { "color": "green", "label": "UP", "key": "w" }
     },
     {
       "type": "wokwi-slide-potentiometer",
