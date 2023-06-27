@@ -12,7 +12,7 @@ use hal::{
     adc::{AdcConfig, AdcPin, Attenuation, ADC, ADC2},
     analog::AvailableAnalog,
     clock::ClockControl,
-    gpio::{Analog, Gpio25, Unknown},
+    gpio::{Analog, Gpio25},
     i2c::I2C,
     peripherals::Peripherals,
     prelude::*,
@@ -140,13 +140,13 @@ async fn read_input(up: InputPin, down: InputPin, pos1: InputPin, pos2: InputPin
 }
 
 #[embassy_executor::task]
-async fn measure_task(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) {
+async fn measure_task(gpio25: Gpio25<Analog>, analog: AvailableAnalog) {
     measure(gpio25, analog).await.expect("measure task failed");
 }
 
-async fn measure(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) -> Result<(), &'static str> {
+async fn measure(pin: Gpio25<Analog>, analog: AvailableAnalog) -> Result<(), &'static str> {
     let mut adc2_config = AdcConfig::new();
-    let mut pin25 = adc2_config.enable_pin(gpio25.into_analog(), Attenuation::Attenuation11dB);
+    let mut pin25 = adc2_config.enable_pin(pin, Attenuation::Attenuation11dB);
     let mut adc2 =
         ADC::<ADC2>::adc(analog.adc2, adc2_config).map_err(|_| "ADC initialization failed")?;
 
@@ -260,13 +260,14 @@ fn main() -> ! {
     let btn_down = io.pins.gpio19.into_pull_up_input().degrade();
     let btn_pos1 = io.pins.gpio4.into_pull_up_input().degrade();
     let btn_pos2 = io.pins.gpio5.into_pull_up_input().degrade();
+    let height_meter = io.pins.gpio25.into_analog();
 
     let up = io.pins.gpio14.into_push_pull_output().degrade();
     let down = io.pins.gpio12.into_push_pull_output().degrade();
 
     let executor = EXECUTOR.init(Executor::new());
     executor.run(|spawner| {
-        spawner.spawn(measure_task(io.pins.gpio25, analog)).unwrap();
+        spawner.spawn(measure_task(height_meter, analog)).unwrap();
         spawner.spawn(display_task(i2c)).unwrap();
         spawner
             .spawn(read_input(btn_up, btn_down, btn_pos1, btn_pos2))
