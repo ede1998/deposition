@@ -94,7 +94,7 @@ impl Calibration {
         self.fix_points.remove(index);
     }
     pub fn transform(&self, reading: u16) -> Millimeters {
-        if self.fix_points.is_empty() {
+        if self.fix_points.len() < 2 {
             return Millimeters::from_mm(0);
         }
 
