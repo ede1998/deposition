@@ -1,6 +1,7 @@
 use core::cmp::Ordering;
 
 use embassy_futures::select::{select, select3};
+use embassy_time::{Duration, Ticker};
 
 use crate::{
     data::{Direction, Millimeters, DIRECTION, GUI_MENU, HEIGHT},
@@ -76,7 +77,7 @@ async fn drive_to_position(inputs: &mut Inputs, target_height: Millimeters) {
     let check_height = || async move {
         let mut current_height = current_height;
         while on_the_way(current_height, target_height) {
-            embassy_futures::yield_now().await;
+            Ticker::every(Duration::from_millis(10)).next().await;
             current_height = *HEIGHT.lock().await;
         }
     };

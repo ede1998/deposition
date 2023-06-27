@@ -5,7 +5,7 @@
 
 use debouncr::DebouncerStateful;
 use embassy_executor::Executor;
-use embassy_time::{Duration, Timer};
+use embassy_time::{Duration, Ticker, Timer};
 use esp_backtrace as _;
 use esp_println::logger::init_logger;
 use hal::{
@@ -41,7 +41,7 @@ async fn poll<T, E>(mut f: impl FnMut() -> nb::Result<T, E>) -> Result<T, E> {
         match f() {
             Ok(ok) => break Ok(ok),
             Err(nb::Error::Other(err)) => break Err(err),
-            Err(nb::Error::WouldBlock) => embassy_futures::yield_now().await,
+            Err(nb::Error::WouldBlock) => {} // todo: do we want to keep a busy loop here? the measure task starved with this: `embassy_futures::yield_now().await,`
         }
     }
 }
@@ -157,12 +157,16 @@ async fn measure(gpio25: Gpio25<Unknown>, analog: AvailableAnalog) -> Result<(),
             calibration = CALIBRATION.wait().await;
         }
 
+        log::trace!("starting measurement");
+
         let pin25_value = read_sample(&mut adc2, &mut pin25).await?;
 
         let value = calibration.transform(pin25_value);
 
+        log::trace!("new height {} (={pin25_value}) measured", value.as_mm());
         *HEIGHT.lock().await = value;
         RAW_HEIGHT.signal(pin25_value);
+        Ticker::every(Duration::from_millis(5)).next().await;
     }
 }
 
@@ -213,7 +217,7 @@ static EXECUTOR: StaticCell<Executor> = StaticCell::new();
 
 #[entry]
 fn main() -> ! {
-    init_logger(log::LevelFilter::Debug);
+    init_logger(log::LevelFilter::Trace);
     log::info!("init!");
     let peripherals = Peripherals::take();
     let mut system = peripherals.DPORT.split();
