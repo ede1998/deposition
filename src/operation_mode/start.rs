@@ -17,9 +17,9 @@ pub async fn run(inputs: &mut Inputs) -> Result {
         start_gui(Direction::Stopped).await;
         inputs.wait_all_released().await;
         match inputs.wait_for_press().await {
-            Button::UpAndDown => loop {
+            Button::UpAndDown => {
                 options::run(inputs).await?;
-            },
+            }
             Button::Up => {
                 drive_direction(inputs, Direction::Up, Button::Up).await;
             }
