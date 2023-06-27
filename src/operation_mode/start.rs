@@ -3,7 +3,7 @@ use core::cmp::Ordering;
 use embassy_futures::select::{select, select3};
 
 use crate::{
-    data::{Millimeters, DIRECTION, GUI_MENU, HEIGHT, Direction},
+    data::{Direction, Millimeters, DIRECTION, GUI_MENU, HEIGHT},
     gui::Start,
     input::{Button, Inputs},
     storage::CONFIGURATION,
