@@ -9,10 +9,10 @@ use embassy_time::{Duration, Ticker, Timer};
 use esp_backtrace as _;
 use esp_println::logger::init_logger;
 use hal::{
-    adc::{AdcConfig, AdcPin, Attenuation, ADC, ADC2},
+    adc::{AdcConfig, AdcPin, Attenuation, ADC, ADC1},
     analog::AvailableAnalog,
     clock::ClockControl,
-    gpio::{Analog, Gpio25},
+    gpio::{Analog, Gpio34},
     i2c::I2C,
     peripherals::Peripherals,
     prelude::*,
@@ -140,15 +140,15 @@ async fn read_input(up: InputPin, down: InputPin, pos1: InputPin, pos2: InputPin
 }
 
 #[embassy_executor::task]
-async fn measure_task(gpio25: Gpio25<Analog>, analog: AvailableAnalog) {
-    measure(gpio25, analog).await.expect("measure task failed");
+async fn measure_task(gpio34: Gpio34<Analog>, analog: AvailableAnalog) {
+    measure(gpio34, analog).await.expect("measure task failed");
 }
 
-async fn measure(pin: Gpio25<Analog>, analog: AvailableAnalog) -> Result<(), &'static str> {
-    let mut adc2_config = AdcConfig::new();
-    let mut pin25 = adc2_config.enable_pin(pin, Attenuation::Attenuation11dB);
-    let mut adc2 =
-        ADC::<ADC2>::adc(analog.adc2, adc2_config).map_err(|_| "ADC initialization failed")?;
+async fn measure(pin: Gpio34<Analog>, analog: AvailableAnalog) -> Result<(), &'static str> {
+    let mut adc1_config = AdcConfig::new();
+    let mut pin34 = adc1_config.enable_pin(pin, Attenuation::Attenuation11dB);
+    let mut adc1 =
+        ADC::<ADC1>::adc(analog.adc1, adc1_config).map_err(|_| "ADC initialization failed")?;
 
     let mut calibration = CONFIGURATION.lock().await.get().calibration.clone();
 
@@ -159,7 +159,7 @@ async fn measure(pin: Gpio25<Analog>, analog: AvailableAnalog) -> Result<(), &'s
 
         log::trace!("starting measurement");
 
-        let pin25_value = read_sample(&mut adc2, &mut pin25).await?;
+        let pin25_value = read_sample(&mut adc1, &mut pin34).await?;
 
         let value = calibration.transform(pin25_value);
 
@@ -171,12 +171,12 @@ async fn measure(pin: Gpio25<Analog>, analog: AvailableAnalog) -> Result<(), &'s
 }
 
 async fn read_sample<'a>(
-    adc2: &mut ADC<'a, ADC2>,
-    pin25: &mut AdcPin<Gpio25<Analog>, ADC2>,
+    adc1: &mut ADC<'a, ADC1>,
+    pin34: &mut AdcPin<Gpio34<Analog>, ADC1>,
 ) -> Result<u16, &'static str> {
     let mut samples = heapless::Vec::<_, SAMPLE_COUNT>::new();
     for _ in 0..samples.capacity() {
-        let sample = poll(|| adc2.read(pin25))
+        let sample = poll(|| adc1.read(pin34))
             .await
             .map_err(|_| "failed to read ADC value")?;
 
@@ -260,7 +260,7 @@ fn main() -> ! {
     let btn_down = io.pins.gpio19.into_pull_up_input().degrade();
     let btn_pos1 = io.pins.gpio4.into_pull_up_input().degrade();
     let btn_pos2 = io.pins.gpio5.into_pull_up_input().degrade();
-    let height_meter = io.pins.gpio25.into_analog();
+    let height_meter = io.pins.gpio34.into_analog();
 
     let up = io.pins.gpio14.into_push_pull_output().degrade();
     let down = io.pins.gpio12.into_push_pull_output().degrade();

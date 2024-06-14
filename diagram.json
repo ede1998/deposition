@@ -84,7 +84,7 @@
     [ "oled1:VCC", "esp:3V3", "red", [ "v0" ] ],
     [ "pot1:GND", "esp:GND.1", "black", [ "v0" ] ],
     [ "esp:3V3", "pot1:VCC", "red", [ "h28.7", "v160.2", "h-1130.39" ] ],
-    [ "esp:D25", "pot1:SIG", "green", [ "h-1026.91", "v414.34" ] ],
+    [ "esp:D34", "pot1:SIG", "green", [ "h-1026.91", "v414.34" ] ],
     [ "esp:D32", "oled1:SDA", "blue", [ "h-27.93", "v136.71", "h263.59" ] ],
     [ "oled1:SCL", "esp:D27", "gray", [ "v-18.37", "h-269.28", "v-106.36" ] ],
     [ "r1:2", "esp:D12", "green", [ "v0" ] ],
