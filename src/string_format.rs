@@ -10,7 +10,7 @@ pub fn format<const N: usize>(args: core::fmt::Arguments) -> heapless::String<N>
     }
 
     args.as_str()
-        .map_or_else(|| format_inner(args), heapless::String::from)
+        .map_or_else(|| format_inner(args), |s| s.try_into().unwrap())
 }
 
 #[macro_export]

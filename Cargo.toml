@@ -15,41 +15,44 @@ rustdoc-args = [
 ]
 
 [dependencies]
-hal = { package = "esp32-hal", version = "0.12.0", features = [
-    "embassy-time-timg0",
-    "embassy",
+hal = { package = "esp-hal", version = "0.18.0", features = [
+    "esp32",
+    "async",
+    "embedded-hal-02",
 ] }
-esp-backtrace = { version = "0.7.0", features = [
+esp-backtrace = { version = "0.12.0", features = [
     "esp32",
     "panic-handler",
     "exception-handler",
-    "print-uart",
+    "println",
 ] }
-esp-println = { version = "0.5.0", features = [
+esp-println = { version = "0.9.1", features = [
     "esp32",
     "uart",
     "log",
     "critical-section",
     # no color feature so wokwi console does not contain color codes
 ], default-features = false }
-ssd1306 = "0.7.1"
-embedded-graphics = "0.7.1"
-embassy-executor = { version = "0.2.0", features = [
-    "arch-xtensa",
+ssd1306 = "0.8.4"
+embedded-graphics = "0.8.1"
+embassy-executor = { version = "0.5.0", features = [
     "executor-thread",
     "integrated-timers",
     "nightly",
 ] }
-static_cell = "1.0.0"
-embassy-sync = { version = "0.2.0", features = ["nightly"] }
-embassy-time = { version = "0.1.1", features = ["nightly"] }
+embassy-sync = { version = "0.6.0" }
+embassy-time = { version = "0.3.1" }
 embassy-futures = "0.1.0"
-heapless = "0.7.16"
+heapless = { version = "0.8.0", features = ["serde"] }
 debouncr = "0.2.2"
-unwrap-infallible = "0.1.5"
 bitflags = "2.3.2"
 log = "0.4.19"
-esp-storage = { version = "0.1.0", features = ["esp32"] }
+esp-storage = { version = "0.3.0", features = ["esp32"] }
 embedded-storage = "0.3.0"
 postcard = "1.0.4"
 serde = { version = "1.0.163", default-features = false, features = ["derive"] }
+esp-hal-embassy = { version = "0.1.0", features = [
+    "esp32",
+    "time-timg0",
+    "integrated-timers",
+] }

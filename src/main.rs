@@ -1,27 +1,23 @@
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
-#![feature(result_option_inspect)]
 
 use debouncr::DebouncerStateful;
-use embassy_executor::Executor;
 use embassy_time::{Duration, Ticker, Timer};
+use embedded_graphics::{draw_target::DrawTarget, pixelcolor::BinaryColor};
 use esp_backtrace as _;
 use esp_println::logger::init_logger;
 use hal::{
-    adc::{AdcConfig, AdcPin, Attenuation, ADC, ADC1},
-    analog::AvailableAnalog,
+    analog::adc::{Adc, AdcConfig, AdcPin, Attenuation},
     clock::ClockControl,
-    gpio::{Analog, Gpio34},
+    gpio::{Gpio34, Io, Level, Pull},
     i2c::I2C,
-    peripherals::Peripherals,
+    peripherals::{Peripherals, ADC1},
     prelude::*,
-    timer::TimerGroup,
-    Rtc, IO,
+    system::SystemControl,
+    timer::timg::TimerGroup,
 };
 use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
-use static_cell::StaticCell;
-use unwrap_infallible::UnwrapInfallible;
 
 mod data;
 mod gui;
@@ -60,13 +56,13 @@ fn compute_median(samples: &mut [u16]) -> u16 {
 
 const SAMPLE_COUNT: usize = if cfg!(debug_assertions) { 32 } else { 64 };
 
-type InputPin = hal::gpio::AnyPin<hal::gpio::Input<hal::gpio::PullUp>>;
-type OutputPin = hal::gpio::AnyPin<hal::gpio::Output<hal::gpio::PushPull>>;
+type InputPin = hal::gpio::AnyInput<'static>;
+type OutputPin = hal::gpio::AnyOutput<'static>;
 
 #[embassy_executor::task]
 async fn drive(mut up: OutputPin, mut down: OutputPin) {
-    up.set_low().unwrap();
-    down.set_low().unwrap();
+    up.set_low();
+    down.set_low();
     loop {
         Timer::after(Duration::from_millis(5)).await;
         let Some(direction) = DIRECTION.planned().await else {
@@ -75,20 +71,20 @@ async fn drive(mut up: OutputPin, mut down: OutputPin) {
         log::info!("starting to drive in direction {direction}");
         match direction {
             Direction::Up => {
-                down.set_low().unwrap();
-                up.set_high().unwrap();
+                down.set_low();
+                up.set_high();
             }
             Direction::Down => {
-                up.set_low().unwrap();
-                down.set_high().unwrap();
+                up.set_low();
+                down.set_high();
             }
             Direction::Stopped => {
-                up.set_low().unwrap();
-                down.set_low().unwrap();
+                up.set_low();
+                down.set_low();
             }
             Direction::ResetDrive => {
-                up.set_high().unwrap();
-                down.set_high().unwrap();
+                up.set_high();
+                down.set_high();
             }
         }
         DIRECTION.acknowledge(direction).await;
@@ -109,7 +105,7 @@ async fn read_input(up: InputPin, down: InputPin, pos1: InputPin, pos2: InputPin
         }
 
         fn update_input(&mut self, input: &mut State) {
-            let active = self.pin.is_low().unwrap_infallible();
+            let active = self.pin.is_low();
             let Some(state) = self.debouncer.update(active) else {
                 return;
             };
@@ -140,15 +136,14 @@ async fn read_input(up: InputPin, down: InputPin, pos1: InputPin, pos2: InputPin
 }
 
 #[embassy_executor::task]
-async fn measure_task(gpio34: Gpio34<Analog>, analog: AvailableAnalog) {
-    measure(gpio34, analog).await.expect("measure task failed");
+async fn measure_task(gpio34: Gpio34, adc: ADC1) {
+    measure(gpio34, adc).await.expect("measure task failed");
 }
 
-async fn measure(pin: Gpio34<Analog>, analog: AvailableAnalog) -> Result<(), &'static str> {
+async fn measure(pin: Gpio34, adc: ADC1) -> Result<(), &'static str> {
     let mut adc1_config = AdcConfig::new();
     let mut pin34 = adc1_config.enable_pin(pin, Attenuation::Attenuation11dB);
-    let mut adc1 =
-        ADC::<ADC1>::adc(analog.adc1, adc1_config).map_err(|_| "ADC initialization failed")?;
+    let mut adc1 = Adc::<ADC1>::new(adc, adc1_config);
 
     let mut calibration = CONFIGURATION.lock().await.get().calibration.clone();
 
@@ -171,12 +166,12 @@ async fn measure(pin: Gpio34<Analog>, analog: AvailableAnalog) -> Result<(), &'s
 }
 
 async fn read_sample<'a>(
-    adc1: &mut ADC<'a, ADC1>,
-    pin34: &mut AdcPin<Gpio34<Analog>, ADC1>,
+    adc1: &mut Adc<'a, ADC1>,
+    pin34: &mut AdcPin<Gpio34, ADC1>,
 ) -> Result<u16, &'static str> {
     let mut samples = heapless::Vec::<_, SAMPLE_COUNT>::new();
     for _ in 0..samples.capacity() {
-        let sample = poll(|| adc1.read(pin34))
+        let sample = poll(|| adc1.read_oneshot(pin34))
             .await
             .map_err(|_| "failed to read ADC value")?;
 
@@ -187,11 +182,13 @@ async fn read_sample<'a>(
 }
 
 #[embassy_executor::task]
-async fn display_task(i2c: I2C<'static, hal::peripherals::I2C0>) {
+async fn display_task(i2c: I2C<'static, hal::peripherals::I2C0, hal::Blocking>) {
     display(i2c).await.expect("display task failed");
 }
 
-async fn display(i2c: I2C<'static, hal::peripherals::I2C0>) -> Result<(), &'static str> {
+async fn display(
+    i2c: I2C<'static, hal::peripherals::I2C0, hal::Blocking>,
+) -> Result<(), &'static str> {
     let interface = I2CDisplayInterface::new(i2c);
     let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
         .into_buffered_graphics_mode();
@@ -202,7 +199,9 @@ async fn display(i2c: I2C<'static, hal::peripherals::I2C0>) -> Result<(), &'stat
     loop {
         let menu = GUI_MENU.wait().await;
 
-        display.clear();
+        display
+            .clear(BinaryColor::Off)
+            .map_err(|_| "clearing display failed")?;
         menu.display(&mut display).await?;
         display.flush().map_err(|_| "flushing failed")?;
     }
@@ -213,39 +212,19 @@ async fn run() {
     operation_mode::run().await.expect("run task failed");
 }
 
-static EXECUTOR: StaticCell<Executor> = StaticCell::new();
-
-#[entry]
-fn main() -> ! {
+#[main]
+async fn main(spawner: embassy_executor::Spawner) {
     init_logger(log::LevelFilter::Trace);
     log::info!("init!");
     let peripherals = Peripherals::take();
-    let mut system = peripherals.DPORT.split();
+    let system = SystemControl::new(peripherals.SYSTEM);
     let clocks = ClockControl::boot_defaults(system.clock_control).freeze();
 
-    let mut rtc = Rtc::new(peripherals.RTC_CNTL);
-    let timer_group0 = TimerGroup::new(
-        peripherals.TIMG0,
-        &clocks,
-        &mut system.peripheral_clock_control,
-    );
-    let mut wdt0 = timer_group0.wdt;
-    let timer_group1 = TimerGroup::new(
-        peripherals.TIMG1,
-        &clocks,
-        &mut system.peripheral_clock_control,
-    );
-    let mut wdt1 = timer_group1.wdt;
+    let timer_group0 = TimerGroup::new_async(peripherals.TIMG0, &clocks);
+    esp_hal_embassy::init(&clocks, timer_group0);
 
-    // Disable watchdog timers
-    rtc.rwdt.disable();
-    wdt0.disable();
-    wdt1.disable();
-
-    hal::embassy::init(&clocks, timer_group0.timer0);
-
-    let io = IO::new(peripherals.GPIO, peripherals.IO_MUX);
-    let analog = peripherals.SENS.split();
+    let io = Io::new(peripherals.GPIO, peripherals.IO_MUX);
+    let adc = peripherals.ADC1;
     // Create a new peripheral object with the described wiring
     // and standard I2C clock speed
     let i2c = I2C::new(
@@ -253,26 +232,23 @@ fn main() -> ! {
         io.pins.gpio32,
         io.pins.gpio27,
         100u32.kHz(),
-        &mut system.peripheral_clock_control,
         &clocks,
+        None,
     );
-    let btn_up = io.pins.gpio18.into_pull_up_input().degrade();
-    let btn_down = io.pins.gpio19.into_pull_up_input().degrade();
-    let btn_pos1 = io.pins.gpio4.into_pull_up_input().degrade();
-    let btn_pos2 = io.pins.gpio5.into_pull_up_input().degrade();
-    let height_meter = io.pins.gpio34.into_analog();
+    let btn_up = InputPin::new(io.pins.gpio18, Pull::Up);
+    let btn_down = InputPin::new(io.pins.gpio19, Pull::Up);
+    let btn_pos1 = InputPin::new(io.pins.gpio4, Pull::Up);
+    let btn_pos2 = InputPin::new(io.pins.gpio5, Pull::Up);
+    let height_meter = io.pins.gpio34;
 
-    let up = io.pins.gpio14.into_push_pull_output().degrade();
-    let down = io.pins.gpio12.into_push_pull_output().degrade();
+    let up = OutputPin::new(io.pins.gpio14, Level::Low);
+    let down = OutputPin::new(io.pins.gpio12, Level::Low);
 
-    let executor = EXECUTOR.init(Executor::new());
-    executor.run(|spawner| {
-        spawner.spawn(measure_task(height_meter, analog)).unwrap();
-        spawner.spawn(display_task(i2c)).unwrap();
-        spawner
-            .spawn(read_input(btn_up, btn_down, btn_pos1, btn_pos2))
-            .unwrap();
-        spawner.spawn(drive(up, down)).unwrap();
-        spawner.spawn(run()).unwrap();
-    });
+    spawner.spawn(measure_task(height_meter, adc)).unwrap();
+    spawner.spawn(display_task(i2c)).unwrap();
+    spawner
+        .spawn(read_input(btn_up, btn_down, btn_pos1, btn_pos2))
+        .unwrap();
+    spawner.spawn(drive(up, down)).unwrap();
+    spawner.spawn(run()).unwrap();
 }
