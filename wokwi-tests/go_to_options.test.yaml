@@ -13,6 +13,7 @@ steps:
       part-id: btn3
       control: pressed
       value: 1
+  - wait-serial: 'detected'
   - delay: 200ms
   - set-control:
       part-id: btn4
