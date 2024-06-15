@@ -17,6 +17,7 @@ use hal::{
     system::SystemControl,
     timer::timg::TimerGroup,
 };
+use heapless::String;
 use ssd1306::{prelude::*, I2CDisplayInterface, Ssd1306};
 
 mod data;
@@ -186,24 +187,31 @@ async fn display_task(i2c: I2C<'static, hal::peripherals::I2C0, hal::Blocking>) 
     display(i2c).await.expect("display task failed");
 }
 
+fn str_to_owned<const N: usize>(text: &str) -> String<N> {
+    text.try_into()
+        .expect("Length of str exceeds String capacity")
+}
+
 async fn display(
     i2c: I2C<'static, hal::peripherals::I2C0, hal::Blocking>,
-) -> Result<(), &'static str> {
+) -> Result<(), String<150>> {
     let interface = I2CDisplayInterface::new(i2c);
     let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
         .into_buffered_graphics_mode();
     display
         .init()
-        .map_err(|_| "display initialization failed")?;
+        .map_err(|e| format!(150, "display initialization failed: {e:?}"))?;
 
     loop {
         let menu = GUI_MENU.wait().await;
 
         display
             .clear(BinaryColor::Off)
-            .map_err(|_| "clearing display failed")?;
-        menu.display(&mut display).await?;
-        display.flush().map_err(|_| "flushing failed")?;
+            .map_err(|e| format!(150, "clearing display failed: {e:?}"))?;
+        menu.display(&mut display).await.map_err(str_to_owned)?;
+        display
+            .flush()
+            .map_err(|e| format!(150, "flushing failed: {e:?}"))?;
     }
 }
 
