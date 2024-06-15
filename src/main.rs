@@ -249,8 +249,8 @@ async fn main(spawner: embassy_executor::Spawner) {
     let btn_pos2 = InputPin::new(io.pins.gpio5, Pull::Up);
     let height_meter = io.pins.gpio34;
 
-    let up = OutputPin::new(io.pins.gpio14, Level::Low);
-    let down = OutputPin::new(io.pins.gpio12, Level::Low);
+    let up = OutputPin::new(io.pins.gpio26, Level::Low);
+    let down = OutputPin::new(io.pins.gpio25, Level::Low);
 
     spawner.spawn(measure_task(height_meter, adc)).unwrap();
     spawner.spawn(display_task(i2c)).unwrap();
