@@ -7,6 +7,9 @@ $fn = 20;
 container_inner = [65, 25, 12.3];
 container_thickness = 3;
 
+connector_gap_height = 3.5;
+connector_gap_width = 13.7;
+
 button_height = 11.9;
 button_length = 11.9;
 button_base_width = 3.7;
@@ -67,6 +70,8 @@ module main() {
         for (i = [-1.5:1.5]) {
             translate([i * (button_length + 4), -0.5*container_inner.y, (button_length + 5)/2-0.5*container_inner.z]) cube([button_face,container_thickness*2.5, button_face+5], center = true);
         }
+        translate([0, container_inner.y / 2 - 0.5 * container_thickness, container_inner.z / 2 + container_thickness - connector_gap_height + 0.25])
+            backcube([connector_gap_width, container_thickness * 2, connector_gap_height]);
     }
     
     button_start_y = -container_inner[1] /2;
@@ -88,7 +93,7 @@ module main() {
 
 intersection() {
     main();
-    translate([5.5,-7,-2]) cube([button_length+8,24,button_height+container_thickness + 30], center = true);
+//    translate([5.5,-7,-2]) cube([button_length+8,24,button_height+container_thickness + 30], center = true);
 //    #translate([3.5,width/2+3,-5.5]) rotate([0,0,180]) cube([spool_fixture_distance + 6, wall_thickness * 5, 5]); // spool
 //    #translate([23.5,width/2-15,8.5]) cube([7, wall_thickness * 10, 5]); // optocoupler
 }
