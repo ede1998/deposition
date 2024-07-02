@@ -20,8 +20,6 @@ button_face = 8;
 module brace(lengths, height, thicknesses) {
     assert(len(lengths) == 2, "Requires 2 length values, one for each leg");
     assert(len(thicknesses) == 2, "Requires 2 thickness values, one for each leg");
-    assert(lengths.x >= thicknesses.y);
-    assert(lengths.y >= thicknesses.x);
     linear_extrude(height = height)
         polygon(points = [[0,0], [0, thicknesses.y], [lengths.x, thicknesses.y], [lengths.x, thicknesses.y + lengths.y], [lengths.x + thicknesses.x, thicknesses.y + lengths.y], [lengths.x + thicknesses.x,0]]);
 }
@@ -30,8 +28,8 @@ module brace(lengths, height, thicknesses) {
 module button_brace() {
     brace_thickness = 3;
     button_center_x = button_length / 2 + brace_thickness;
-    cover_brace_thickness = [2,3];
-    cover_brace_lengths = [3,2];
+    cover_brace_thickness = [2,2];
+    cover_brace_lengths = [3,2.4];
     cover_length = button_length +2;
     cover_brace_start_y = - (button_clicker_bump - brace_thickness);
     
@@ -40,11 +38,11 @@ module button_brace() {
         extra_support = [button_prongs_distance * 0.7, 4, button_height * 0.8];
         translate([button_center_x - 0.5 * extra_support.x, button_base_width + brace_thickness + button_prongs_length, 0]) cube(extra_support);
         
-        translate([2*brace_thickness,0,0]) mirror([1,0,0]) brace([brace_thickness, brace_thickness], button_height, [brace_thickness, brace_thickness]);
-        translate([button_length,0,0]) brace([brace_thickness, brace_thickness], button_height, [brace_thickness, brace_thickness]);
+        translate([2*brace_thickness,0,0]) mirror([1,0,0]) brace([brace_thickness, brace_thickness], button_height, [brace_thickness, brace_thickness - 0.2]);
+        translate([button_length,0,0]) brace([brace_thickness, brace_thickness], button_height, [brace_thickness, brace_thickness - 0.2]);
     }
     
-    translate([-button_center_x, cover_brace_lengths[1] + cover_brace_thickness.y - cover_brace_start_y, 0]) {
+    translate([-button_center_x, cover_brace_lengths.y + cover_brace_thickness.y - cover_brace_start_y, 0]) {
         distance_from_center = 0.5 * cover_length - cover_brace_lengths[0];
         translate([button_center_x + distance_from_center, cover_brace_start_y,0]) mirror([0,1,0]) brace(cover_brace_lengths, button_height, cover_brace_thickness);
         translate([button_center_x - distance_from_center, cover_brace_start_y,0]) rotate([0,0,180]) brace(cover_brace_lengths, button_height, cover_brace_thickness);
