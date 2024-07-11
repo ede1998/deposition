@@ -3,7 +3,7 @@
 #![feature(type_alias_impl_trait)]
 
 use debouncr::DebouncerStateful;
-use embassy_time::{Duration, Ticker, Timer};
+use embassy_time::{Duration, Instant, Ticker, Timer};
 use embedded_graphics::{draw_target::DrawTarget, pixelcolor::BinaryColor};
 use esp_backtrace as _;
 use esp_println::logger::init_logger;
@@ -148,6 +148,7 @@ async fn measure(pin: Gpio34, adc: ADC1) -> Result<(), &'static str> {
 
     let mut calibration = CONFIGURATION.lock().await.get().calibration.clone();
 
+    let mut last_log = Instant::now();
     loop {
         if CALIBRATION.signaled() {
             calibration = CALIBRATION.wait().await;
@@ -157,7 +158,10 @@ async fn measure(pin: Gpio34, adc: ADC1) -> Result<(), &'static str> {
 
         let value = calibration.transform(pin25_value);
 
-        log::trace!("new height {} (={pin25_value}) measured", value.as_mm());
+        if log::log_enabled!(log::Level::Trace) && last_log.elapsed() > Duration::from_millis(250) {
+            log::trace!("new height {} (={pin25_value}) measured", value.as_mm());
+            last_log = Instant::now();
+        }
         *HEIGHT.lock().await = value;
         RAW_HEIGHT.signal(pin25_value);
         Ticker::every(Duration::from_millis(5)).next().await;
