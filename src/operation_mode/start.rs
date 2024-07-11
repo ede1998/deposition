@@ -58,20 +58,27 @@ async fn drive_direction(inputs: &mut Inputs, direction: Direction, button: Butt
 }
 
 async fn drive_to_position(inputs: &mut Inputs, target_height: Millimeters) {
+    const ALLOWED_DELTA_IN_STANDSTILL: Millimeters = Millimeters::from_mm(2);
+    const ALLOWED_DELTA_IN_MOVEMENT: Millimeters = Millimeters::from_mm(18);
     let current_height = *HEIGHT.lock().await;
     let direction;
-    let on_the_way: fn(Millimeters, Millimeters) -> bool;
-    match current_height.cmp_fuzzy_eq(target_height) {
+    let on_the_way = match current_height.cmp_fuzzy_eq(target_height, ALLOWED_DELTA_IN_STANDSTILL) {
         Ordering::Equal => return,
         Ordering::Less => {
             direction = Direction::Up;
-            on_the_way =
-                |current_height, target_height| current_height.cmp_fuzzy_eq(target_height).is_lt();
+            |current_height: Millimeters, target_height| {
+                current_height
+                    .cmp_fuzzy_eq(target_height, ALLOWED_DELTA_IN_MOVEMENT)
+                    .is_lt()
+            }
         }
         Ordering::Greater => {
             direction = Direction::Down;
-            on_the_way =
-                |current_height, target_height| current_height.cmp_fuzzy_eq(target_height).is_gt();
+            |current_height: Millimeters, target_height| {
+                current_height
+                    .cmp_fuzzy_eq(target_height, ALLOWED_DELTA_IN_MOVEMENT)
+                    .is_gt()
+            }
         }
     };
 

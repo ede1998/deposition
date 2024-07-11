@@ -147,11 +147,14 @@ impl Millimeters {
         self.0 == 0
     }
 
-    pub const fn cmp_fuzzy_eq(self, other: Self) -> core::cmp::Ordering {
-        const ALLOWED_DELTA: u16 = 2;
+    pub const fn cmp_fuzzy_eq(
+        self,
+        other: Self,
+        allowed_delta: Millimeters,
+    ) -> core::cmp::Ordering {
         let left = self.0;
         let right = other.0;
-        if left.abs_diff(right) < ALLOWED_DELTA {
+        if left.abs_diff(right) < allowed_delta.0 {
             Ordering::Equal
         } else if left < right {
             Ordering::Less

@@ -54,6 +54,8 @@ impl StorageData {
 
         *self = Self::load().unwrap_or_else(Self::const_default);
         self.magic_identifier = MAGIC_BYTES;
+
+        log::info!("Initialized storage data: {self:#?}");
     }
 
     fn load() -> Option<Self> {
