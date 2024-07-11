@@ -196,7 +196,7 @@ async fn display(
     i2c: I2C<'static, hal::peripherals::I2C0, hal::Blocking>,
 ) -> Result<(), String<150>> {
     let interface = I2CDisplayInterface::new(i2c);
-    let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate0)
+    let mut display = Ssd1306::new(interface, DisplaySize128x64, DisplayRotation::Rotate180)
         .into_buffered_graphics_mode();
     display
         .init()
@@ -222,7 +222,7 @@ async fn run() {
 
 #[main]
 async fn main(spawner: embassy_executor::Spawner) {
-    init_logger(log::LevelFilter::Trace);
+    init_logger(log::LevelFilter::Info);
     log::info!("init!");
     let peripherals = Peripherals::take();
     let system = SystemControl::new(peripherals.SYSTEM);
@@ -249,8 +249,8 @@ async fn main(spawner: embassy_executor::Spawner) {
     let btn_pos2 = InputPin::new(io.pins.gpio5, Pull::Up);
     let height_meter = io.pins.gpio34;
 
-    let up = OutputPin::new(io.pins.gpio26, Level::Low);
-    let down = OutputPin::new(io.pins.gpio25, Level::Low);
+    let up = OutputPin::new(io.pins.gpio25, Level::Low);
+    let down = OutputPin::new(io.pins.gpio26, Level::Low);
 
     spawner.spawn(measure_task(height_meter, adc)).unwrap();
     spawner.spawn(display_task(i2c)).unwrap();
