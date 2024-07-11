@@ -153,8 +153,6 @@ async fn measure(pin: Gpio34, adc: ADC1) -> Result<(), &'static str> {
             calibration = CALIBRATION.wait().await;
         }
 
-        log::trace!("starting measurement");
-
         let pin25_value = read_sample(&mut adc1, &mut pin34).await?;
 
         let value = calibration.transform(pin25_value);
@@ -222,7 +220,7 @@ async fn run() {
 
 #[main]
 async fn main(spawner: embassy_executor::Spawner) {
-    init_logger(log::LevelFilter::Info);
+    init_logger(log::LevelFilter::Trace);
     log::info!("init!");
     let peripherals = Peripherals::take();
     let system = SystemControl::new(peripherals.SYSTEM);

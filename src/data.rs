@@ -1,22 +1,25 @@
 use core::cmp::Ordering;
 
-use embassy_sync::{blocking_mutex::raw::CriticalSectionRawMutex, mutex::Mutex, signal::Signal};
+use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
 use crate::{gui::MainMenu, input::Inputs};
 
-pub static HEIGHT: Mutex<CriticalSectionRawMutex, Millimeters> = Mutex::new(Millimeters(0));
-pub static RAW_HEIGHT: Signal<CriticalSectionRawMutex, u16> = Signal::new();
-pub static INPUT: Mutex<CriticalSectionRawMutex, Inputs> = Mutex::new(Inputs::new());
+pub type Mutex<T> = embassy_sync::mutex::Mutex<CriticalSectionRawMutex, T>;
+pub type Signal<T> = embassy_sync::signal::Signal<CriticalSectionRawMutex, T>;
 
-pub static GUI_MENU: Signal<CriticalSectionRawMutex, MainMenu> = Signal::new();
+pub static HEIGHT: Mutex<Millimeters> = Mutex::new(Millimeters(0));
+pub static RAW_HEIGHT: Signal<u16> = Signal::new();
+pub static INPUT: Mutex<Inputs> = Mutex::new(Inputs::new());
+
+pub static GUI_MENU: Signal<MainMenu> = Signal::new();
 
 pub static DIRECTION: DirectionControl = DirectionControl::new();
 
 pub struct DirectionControl {
-    requested: Mutex<CriticalSectionRawMutex, Direction>,
-    current: Mutex<CriticalSectionRawMutex, Direction>,
+    requested: Mutex<Direction>,
+    current: Mutex<Direction>,
 }
 
 impl DirectionControl {
@@ -47,7 +50,7 @@ impl DirectionControl {
     }
 }
 
-pub static CALIBRATION: Signal<CriticalSectionRawMutex, Calibration> = Signal::new();
+pub static CALIBRATION: Signal<Calibration> = Signal::new();
 
 type Mapping = (u16, Millimeters);
 
@@ -138,6 +141,10 @@ pub struct Millimeters(u16);
 impl Millimeters {
     pub const fn from_mm(value: u16) -> Self {
         Self(value)
+    }
+
+    pub const fn is_zero(self) -> bool {
+        self.0 == 0
     }
 
     pub const fn cmp_fuzzy_eq(self, other: Self) -> core::cmp::Ordering {

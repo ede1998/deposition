@@ -1,10 +1,10 @@
 use core::cmp::Ordering;
 
 use embassy_futures::select::{select, select3};
-use embassy_time::{Duration, Ticker};
+use embassy_time::{Duration, Ticker, Timer};
 
 use crate::{
-    data::{Direction, Millimeters, DIRECTION, GUI_MENU, HEIGHT},
+    data::{Direction, Millimeters, Mutex, DIRECTION, GUI_MENU, HEIGHT},
     gui::Start,
     input::{Button, Inputs},
     storage::CONFIGURATION,
@@ -15,6 +15,7 @@ use super::{options, refresh_gui, Result};
 pub async fn run(inputs: &mut Inputs) -> Result {
     loop {
         log::info!("running start screen");
+        wait_for_first_measurement().await;
         start_gui(Direction::Stopped).await;
         inputs.wait_all_released().await;
         match inputs.wait_for_press().await {
@@ -102,4 +103,19 @@ async fn start_gui(direction: Direction) {
         }
         .into(),
     );
+}
+
+async fn wait_for_first_measurement() {
+    let timeout = Duration::from_secs(2);
+    let check_height = async {
+        fn not_updated(h: &Mutex<Millimeters>) -> bool {
+            h.try_lock().map_or(true, |guard| guard.is_zero())
+        }
+
+        while not_updated(&HEIGHT) {
+            Ticker::every(Duration::from_hz(10)).next().await;
+        }
+    };
+
+    select(Timer::after(timeout), check_height).await;
 }
