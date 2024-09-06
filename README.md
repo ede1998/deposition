@@ -3,7 +3,7 @@
 This repository contains **Deposition** (short for *Desk Position*), a small embedded application that controls the position of an height-adjustable desk.
 This is the application in action:
 
-<video src="https://github.com/user-attachments/assets/827e0c9c-4747-438a-ae12-fc30ed03b6e0"></video>
+<video src="https://github.com/user-attachments/assets/10c666cf-5465-435d-b400-dcfeb9302840"></video>
 
 [Video of height-adjustable desk moving up and down](./resources/demo.mp4)
 
@@ -24,7 +24,7 @@ Required hardware:
 
 ### Position Detection
 
-<video src="https://github.com/user-attachments/assets/81cddcd7-b8bb-4885-b38a-85f34ef4b4de"></video>
+<video src="https://github.com/user-attachments/assets/6ebd7623-417b-41c7-af76-c692e692968f"></video>
 
 [Video of thread begin pulled, hooked onto screws and released, display shows current distance](./resources/test-bench.mp4)
 
